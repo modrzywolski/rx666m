@@ -43,7 +43,6 @@ unset(CMAKE_REQUIRED_LIBRARIES)
 
 set(OTHER_LIBS "" CACHE STRING "Other libraries")
 
-if(1)
 SOAPY_SDR_MODULE_UTIL(
     TARGET RX666mSupport
     SOURCES
@@ -57,8 +56,10 @@ SOAPY_SDR_MODULE_UTIL(
         ${RX666M_LIBRARIES}
         ${OTHER_LIBS}
 )
-endif()
 
 ADD_EXECUTABLE(rx666m_util rx666m_util.cpp LowLevel.cpp tuner_r82xx.cpp)
 TARGET_LINK_LIBRARIES(rx666m_util pthread boost_program_options)
+
+ADD_EXECUTABLE(rx666m_convert rx666m_convert.cpp)
+TARGET_LINK_LIBRARIES(rx666m_convert boost_program_options)
 

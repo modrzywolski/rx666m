@@ -273,8 +273,10 @@ SoapySDR::RangeList SoapyRX666m::getFrequencyRange( const int direction, const s
 
     if (name == "RF")
     {
-        results.push_back(SoapySDR::Range(0, 32000000));
-        results.push_back(SoapySDR::Range(   32100000lu, 1800000000lu));
+		//currently only direct sampling is supported
+		results.push_back(SoapySDR::Range(0, 0));
+        //results.push_back(SoapySDR::Range(0, 32000000));
+        //results.push_back(SoapySDR::Range(   32100000lu, 1800000000lu));
     }
     if (name == "CORR")
     {

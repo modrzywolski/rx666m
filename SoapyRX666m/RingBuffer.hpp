@@ -28,7 +28,7 @@
 #include <boost/format.hpp>
 
 constexpr size_t	ring_chunk_size	= 4096*128;
-constexpr size_t	ring_total_entries = 128;
+constexpr size_t	ring_total_entries = 512;
 
 class RingBufEntry
 {

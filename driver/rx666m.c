@@ -33,7 +33,7 @@
 #include <linux/kernel.h>
 #include <linux/time.h>
 
-#include "rx666m_ioctl.h"
+#include "../common/rx666m_ioctl.h"
 
 //////////////////////////////////
 #define BLADE_USB_CMD_QUERY_VERSION             0

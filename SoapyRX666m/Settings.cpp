@@ -29,7 +29,7 @@
 #include "SoapyRX666m.hpp"
 #include <SoapySDR/Time.hpp>
 #include <algorithm>
-#include "../rx666m_ioctl.h"
+#include "../common/rx666m_ioctl.h"
 
 
 SoapyRX666m::SoapyRX666m(const SoapySDR::Kwargs &args):

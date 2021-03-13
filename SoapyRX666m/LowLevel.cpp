@@ -11,7 +11,7 @@
 #include <iostream>
 #include <functional>
 
-#include "../rx666m_ioctl.h"
+#include "../common/rx666m_ioctl.h"
 
 #include "LowLevel.hpp"
 

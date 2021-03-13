@@ -62,11 +62,9 @@ std::string SoapyRX666m::getHardwareKey(void) const
 
 SoapySDR::Kwargs SoapyRX666m::getHardwareInfo(void) const
 {
-    //key/value pairs for any useful information
-    //this also gets printed in --probe
     SoapySDR::Kwargs args;
 
-    args["origin"] = "https://github.com/pothosware/SoapyRX666m";
+    args["origin"] = "emk6@wp.pl";
 
     return args;
 }
@@ -167,8 +165,6 @@ bool SoapyRX666m::getGainMode(const int direction, const size_t channel) const
 
 void SoapyRX666m::setGain(const int direction, const size_t channel, const std::string &name, const double value)
 {
-	printf("setting gain %s to %lf\n", name.c_str(), value);
-
 	if(!AGCEnabled)
 	{
 		if(name == "HFVGA")
@@ -191,8 +187,6 @@ void SoapyRX666m::setGain(const int direction, const size_t channel, const std::
 
 double SoapyRX666m::getGain(const int direction, const size_t channel, const std::string &name) const
 {
-	//std::cerr << "getGain " << name << std::endl;
-
 	if(name == "HFVGA")
 	{
 		return HFGain;
@@ -238,12 +232,10 @@ void SoapyRX666m::setFrequency(
         const double frequency,
         const SoapySDR::Kwargs &args)
 {
-	//printf("setFrequency %s\n", name.c_str());
     if (name == "RF")
     {
         centerFrequency = (uint32_t) frequency;
 		driver.SetDCFreq(frequency);
-		//centerFrequency = 16000000;
     }
 
     if (name == "CORR")
@@ -254,7 +246,6 @@ void SoapyRX666m::setFrequency(
 
 double SoapyRX666m::getFrequency(const int direction, const size_t channel, const std::string &name) const
 {
-	//printf("getFrequency %s\n", name.c_str());
     if (name == "RF")
     {
         return (double) centerFrequency;
@@ -270,22 +261,15 @@ double SoapyRX666m::getFrequency(const int direction, const size_t channel, cons
 
 std::vector<std::string> SoapyRX666m::listFrequencies(const int direction, const size_t channel) const
 {
-	//std::cerr << "listFreq" << std::endl;
-
     std::vector<std::string> names;
     names.push_back("RF");
     names.push_back("CORR");
     return names;
 }
 
-SoapySDR::RangeList SoapyRX666m::getFrequencyRange(
-        const int direction,
-        const size_t channel,
-        const std::string &name) const
+SoapySDR::RangeList SoapyRX666m::getFrequencyRange( const int direction, const size_t channel, const std::string &name) const
 {
     SoapySDR::RangeList results;
-
-	std::cerr << "getFreqRange" << std::endl;
 
     if (name == "RF")
     {
@@ -303,8 +287,6 @@ SoapySDR::ArgInfoList SoapyRX666m::getFrequencyArgsInfo(const int direction, con
 {
     SoapySDR::ArgInfoList freqArgs;
 	
-	std::cerr << "getFrequencyArgsInfo" << std::endl;
-
     return freqArgs;
 }
 
@@ -314,8 +296,6 @@ SoapySDR::ArgInfoList SoapyRX666m::getFrequencyArgsInfo(const int direction, con
 
 void SoapyRX666m::setSampleRate(const int direction, const size_t channel, const double rate)
 {
-	std::cerr << "setSampleRate" << std::endl;
-
     long long ns = SoapySDR::ticksToTimeNs(ticks, sampleRate);
     sampleRate = rate;
 
@@ -326,16 +306,12 @@ void SoapyRX666m::setSampleRate(const int direction, const size_t channel, const
 
 double SoapyRX666m::getSampleRate(const int direction, const size_t channel) const
 {
-//	std::cerr << "getSampleRate" << std::endl;
-
     return sampleRate;
 }
 
 SoapySDR::RangeList SoapyRX666m::getSampleRateRange(const int direction, const size_t channel) const
 {
 	SoapySDR::RangeList sr;
-
-	//std::cerr << "getSampleRateRange" << std::endl;
 
 	sr.push_back( SoapySDR::Range(4000000, 64000000, 1000000) );
 
@@ -345,8 +321,6 @@ SoapySDR::RangeList SoapyRX666m::getSampleRateRange(const int direction, const s
 std::vector<double> SoapyRX666m::listSampleRates(const int direction, const size_t channel) const
 {
     std::vector<double> results;
-
-	std::cerr << "listSampleRates" << std::endl;
 
     results.push_back(64000000);
 
@@ -366,9 +340,6 @@ double SoapyRX666m::getBandwidth(const int direction, const size_t channel) cons
 std::vector<double> SoapyRX666m::listBandwidths(const int direction, const size_t channel) const
 {
     std::vector<double> results;
-
-
-	std::cerr << "listBandwidths" << std::endl;
 
 	results.push_back(32000000);
 

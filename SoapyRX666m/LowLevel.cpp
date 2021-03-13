@@ -196,17 +196,17 @@ void LowLevel::Init()
 
 	if(IsBootloaderRunning())
 	{
-		std::cerr << "load fw\n";
+		std::cerr << "Load firmware\n";
 		LoadFirmware();
-		std::cerr << "start fw\n";
-		sleep(3);
-		std::cerr << "reopen dev\n";
+		std::cerr << "Start firmware\n";
+		sleep(1);
+		std::cerr << "Reopen dev\n";
 		CloseDev();
 		OpenDev();
 		FX3Start();
 	}
 
-	std::cerr << "init clk\n";
+	std::cerr << "Init clk\n";
 	InitClk();
 
 	GpioWrite( GPIO_DEFAULT );
@@ -249,7 +249,7 @@ void LowLevel::SetHFGain(uint16_t gain)
 	i2c_trans.len = 1;
 	i2c_trans.data[0]=gain & 0xff;
 	r=ioctl(devHandle, RX666M_I2C_WRITE, &i2c_trans);
-	printf("r=%d\n", r);
+	//fprintf(stderr,"r=%d\n", r);
 }
 
 void LowLevel::SetAD8331Gain(double gain)
@@ -263,7 +263,7 @@ void LowLevel::SetAD8331Gain(double gain)
 	if(gain > AD8331_MaxGain)
 		gain = AD8331_MaxGain;
 
-	std::cerr << "AD8331 " << gain << " dB" << std::endl;
+	//std::cerr << "AD8331 " << gain << " dB" << std::endl;
 
 	gain -= AD8331_MinGain;
 
@@ -280,7 +280,7 @@ void LowLevel::SetAD8331Gain(double gain)
 	i2c_trans.len = 1;
 	i2c_trans.data[0]=igain & 0xff;
 	r=ioctl(devHandle, RX666M_I2C_WRITE, &i2c_trans);
-	//printf("r=%d\n", r);
+	//fprintf(stderr,"r=%d\n", r);
 }
 
 void LowLevel::SetHFGain2(double gain)
@@ -336,7 +336,7 @@ void LowLevel::SetAttn(double gain)
 
 	int32_t igain = ceil(gain / 10.0);
 
-	//printf("gain=%d\n", (int)igain);
+	//fprintf(stderr,"gain=%d\n", (int)igain);
 
 	if(isRunning() && !DCEnabled)
 	{
@@ -375,9 +375,9 @@ uint16_t LowLevel::GetHFGain()
 	i2c_trans.len = 3;
 
 	r=ioctl(devHandle, RX666M_I2C_READ, &i2c_trans);
-	//printf("r=%d\n", r);
-	//printf("data[0]=%x\n", (uint32_t)i2c_trans.data[0]);
-	//printf("data[1]=%x\n", (uint32_t)i2c_trans.data[1]);
+	//fprintf(stderr,"r=%d\n", r);
+	//fprintf(stderr,"data[0]=%x\n", (uint32_t)i2c_trans.data[0]);
+	//fprintf(stderr,"data[1]=%x\n", (uint32_t)i2c_trans.data[1]);
 	//printf("data[2]=%x\n", (uint32_t)i2c_trans.data[2]);
 
 	uint16_t dac;
@@ -473,7 +473,7 @@ void LowLevel::OpenDev()
 		devHandle = open(devName, 0);
 		if (devHandle < 0)
 		{
-			printf ("Can't open device: %s\n", devName);
+			fprintf(stderr, "Can't open device: %s\n", devName);
 		}
   	}
 }
@@ -517,12 +517,10 @@ bool LowLevel::IsBootloaderRunning()
 
 	if (c < 0)
 	{
-		//printf( "IsBootloaderRunning failed: %d\n", (int)c);
 		return false;
 	}
 	else
 	{
-		//printf("OK: %d\n", (int)c);
 		return true;
 	}
 }
@@ -538,7 +536,7 @@ void LowLevel::FX3Start()
 
 	if (r < 0)
 	{
-		printf ("FX3Start failed:%d\n", r);
+		fprintf(stderr, "FX3Start failed:%d\n", r);
 	}
 }
 
@@ -562,11 +560,11 @@ int LowLevel::SendI2cbyte(uint32_t address, uint8_t reg, uint8_t value)
 	int i;
     for(i=0;i<i2c_trans.len;i++)
 	{
-        //printf("reg[%03x] <- 0x%02x\n", reg+i, (int)i2c_trans.data[i]);
+        //fprintf(stderr, "reg[%03x] <- 0x%02x\n", reg+i, (int)i2c_trans.data[i]);
 	}
 
 	r=ioctl(devHandle, RX666M_I2C_WRITE, &i2c_trans);
-	//printf("r=%d\n", r);
+	//fprintf(stderr,"r=%d\n", r);
 
 	return r;
 }
@@ -580,7 +578,7 @@ int LowLevel::SendI2cbytes(uint32_t address, uint8_t reg, const uint8_t *values,
 
 	rx666m_ioctl_i2c_transfer_t i2c_trans;
 
-	//printf("sizeof(i2c_trans)=%ld\n", sizeof(i2c_trans));
+	//fprintf(stderr,"sizeof(i2c_trans)=%ld\n", sizeof(i2c_trans));
 
 	memset(&i2c_trans, 0, sizeof(i2c_trans));
 
@@ -592,11 +590,11 @@ int LowLevel::SendI2cbytes(uint32_t address, uint8_t reg, const uint8_t *values,
 	int i;
     for(i=0;i<i2c_trans.len;i++)
 	{
-        //printf("reg[%03x] <- 0x%02x\n", reg+i, (int)i2c_trans.data[i]);
+        //fprintf(stderr,"reg[%03x] <- 0x%02x\n", reg+i, (int)i2c_trans.data[i]);
 	}
 
 	r=ioctl(devHandle, RX666M_I2C_WRITE, &i2c_trans);
-	//printf("r=%d\n", r);
+	//fprintf(stderr,"r=%d\n", r);
 
 	return r;
 }
@@ -617,13 +615,13 @@ int LowLevel::RecvI2cbytes(uint32_t address, uint8_t reg, uint8_t *values, size_
 	i2c_trans.len = len;
 
 	r=ioctl(devHandle, RX666M_I2C_READ, &i2c_trans);
-	//printf("r=%d\n", r);
+	//fprintf(stderr,"r=%d\n", r);
 
 	memcpy(values, i2c_trans.data, i2c_trans.len);
 
-    int i;
-	for(i=0;i<i2c_trans.len;i++)
-		printf("reg[%03d]=0x%02x\n", reg+i, (int)i2c_trans.data[i]);
+    //int i;
+	//for(i=0;i<i2c_trans.len;i++)
+	//	fprintf(stderr,"reg[%03d]=0x%02x\n", reg+i, (int)i2c_trans.data[i]);
 
 	return r;
 }
@@ -633,14 +631,14 @@ void LowLevel::GpioWrite(uint8_t gpio)
 	if(devHandle < 0)
 		return;
 
-//	printf("GpioWrite %02x\n", (int)gpio);
+//	fprintf(stderr,"GpioWrite %02x\n", (int)gpio);
 	int r;
 
 	r = ioctl(devHandle, RX666M_GPIO_WRITE, gpio);
 
 	if (r < 0)
 	{
-		printf ("GpioWrite failed:%d\n", r);
+		fprintf(stderr,"GpioWrite failed:%d\n", r);
 	}
 }
 
@@ -655,11 +653,11 @@ int LowLevel::SendFW(unsigned char *firmware, uint32_t address, int32_t len)
 	cmd.address = address;
 	cmd.len = len;
 
-	printf("sending ioctl RX666M_WRITE_RAM address=%x, len=%x\n", address, len);
+	fprintf(stderr,"sending ioctl RX666M_WRITE_RAM address=%x, len=%x\n", address, len);
 	int r = ioctl(devHandle, RX666M_WRITE_RAM, &cmd);
 	if (r < 0)
 	{
-		printf ("ioctl_load_fw failed:%d\n", r);
+		fprintf(stderr,"ioctl_load_fw failed:%d\n", r);
 	}
 
 	return r;
@@ -673,7 +671,7 @@ int LowLevel::FX3ReadImage( const char *filename, unsigned char *buf, int *romsi
 
         if (stat (filename, &filestat) != 0)
 		{
-                fprintf (stderr, "Error: Failed to stat file %s\n", filename);
+                fprintf(stderr, "Error: Failed to stat file %s\n", filename);
                 return -1;
         }
 
@@ -745,7 +743,7 @@ int LowLevel::FX3Download(const char *imagefile)
                 return -2;
         }
 
-		printf("Image loaded, sending to device\n");
+		fprintf(stderr, "Image loaded, sending to device\n");
         // Run through each section of code, and use vendor commands to download them to RAM.
         index    = 4;
         checksum = 0;
@@ -754,7 +752,7 @@ int LowLevel::FX3Download(const char *imagefile)
                 data_p  = (unsigned int *)(fwBuf + index);
                 length  = data_p[0];
                 address = data_p[1];
-				printf("Writting segment: %x of len %x\n", address, length);
+				fprintf(stderr,"Writting segment: %x of len %x\n", address, length);
                 if (length != 0)
 				{
                         for (i = 0; i < length; i++)
@@ -780,13 +778,13 @@ int LowLevel::FX3Download(const char *imagefile)
 						r = SendFW(NULL, address, 0);
 
                         if (r != 0)
-                                printf ("Info: Ignored error in control transfer: %d\n", r);
+                                fprintf(stderr,"Info: Ignored error in control transfer: %d\n", r);
                         break;
                 }
 
                 index += (8 + length * 4);
         }
-		printf("image sent\n");
+		fprintf(stderr, "Image sent\n");
 
         free (fwBuf);
         return 0;
@@ -838,7 +836,7 @@ bool LowLevel::isVGAPresent()
 	else
 		VGAPresent = 0;
 
-	printf("VGA is %s\n", VGAPresent ? "present" : "absent");
+	fprintf(stderr,"VGA is %s\n", VGAPresent ? "present" : "absent");
 	return VGAPresent ? true : false;
 }
 
@@ -859,15 +857,13 @@ bool LowLevel::isDCPresent()
 	else
 		DCPresent = 0;
 
-	printf("DC is %s\n", DCPresent ? "present" : "absent");
+	fprintf(stderr,"DC is %s\n", DCPresent ? "present" : "absent");
 
 	return DCPresent ? true : false;
 }
 
 void LowLevel::ReadThread(void)
 {
-	size_t total = 0;
-
 	pthread_setname_np(pthread_self(), "rx666m reader");
 
 	while(!StopReader)
@@ -888,14 +884,10 @@ void LowLevel::ReadThread(void)
 		else
 		{
 			//read data and drop - for statistics only
-			//printf("dropping\n");
-			//tutaj dodac statystyki do dropping
 			Read(sbuffer, sizeof(sbuffer));
 		}
 
 	}
-
-	printf("Done: %ld bytes\n", total);
 }
 
 int LowLevel::ActivateReader()

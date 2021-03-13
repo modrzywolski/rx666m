@@ -21,9 +21,7 @@
 #include <SoapySDR/Logger.hpp>
 #include <SoapySDR/Formats.hpp>
 #include <SoapySDR/Time.hpp>
-#include <algorithm> //min
-//#include <climits> //SHRT_MAX
-//#include <cstring> // memcpy
+#include <algorithm>
 #include <iostream>
 
 
@@ -95,8 +93,7 @@ SoapySDR::Stream *SoapyRX666m::setupStream(
 
 void SoapyRX666m::closeStream(SoapySDR::Stream *stream)
 {
-    //_buffs.clear();
-
+	SoapySDR_logf(SOAPY_SDR_INFO, "Close stream");
 	driver.DeactivateReader();
 }
 
@@ -107,9 +104,10 @@ size_t SoapyRX666m::getStreamMTU(SoapySDR::Stream *stream) const
 
 int SoapyRX666m::activateStream( SoapySDR::Stream *stream, const int flags, const long long timeNs, const size_t numElems)
 {
-	std::cerr << "activateStream" << std::endl;
+	SoapySDR_logf(SOAPY_SDR_INFO, "Activate stream");
 
-    if (flags != 0) return SOAPY_SDR_NOT_SUPPORTED;
+    if (flags != 0)
+		return SOAPY_SDR_NOT_SUPPORTED;
 
 	driver.Init();
 	driver.ActivateReader();
@@ -123,7 +121,7 @@ int SoapyRX666m::activateStream( SoapySDR::Stream *stream, const int flags, cons
 
 int SoapyRX666m::deactivateStream(SoapySDR::Stream *stream, const int flags, const long long timeNs)
 {
-	std::cerr << "deactivateStream" << std::endl;
+	SoapySDR_logf(SOAPY_SDR_INFO, "Deactivate stream");
 
     return 0;
 }
@@ -184,9 +182,6 @@ int SoapyRX666m::readStream( SoapySDR::Stream *stream, void * const *buffs, size
 	{
 		driver.getRingBuffer().free(buf);
 	}
-
-	if(returnedElems != numElems)
-		fprintf(stderr, "size mistmatch\n");
 
 	if(driver.getRingBuffer().statsCount() > 1)
 		flags |= SOAPY_SDR_MORE_FRAGMENTS;

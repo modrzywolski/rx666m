@@ -38,8 +38,8 @@ SoapyRX666m::SoapyRX666m(const SoapySDR::Kwargs &args):
 {
     if (args.count("label") != 0) SoapySDR_logf(SOAPY_SDR_INFO, "Opening %s...", args.at("label").c_str());
 
-	nco3.setfreq(FNCO::fclk/4);
-	nco4.setfreq(FNCO::fclk/16);
+	nco3.setfreq(NCO::fclk/4);
+	nco4.setfreq(NCO::fclk/16);
 }
 
 SoapyRX666m::~SoapyRX666m(void)

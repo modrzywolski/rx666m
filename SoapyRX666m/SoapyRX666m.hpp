@@ -222,14 +222,8 @@ public:
 private:
 	void convertSamples( void *out_buff, void *in_buff,  size_t st, size_t n);
 
-    //device handle
-    //int deviceId;
-
-    //cached settings
     uint32_t sampleRate, centerFrequency;
-    int ppm;//, directSamplingMode;
-    //size_t numBuffers, bufferLength, asyncBuffs;
-    //bool offsetMode;
+    int ppm;
     std::atomic<long long> ticks;
 
 public:
@@ -239,9 +233,7 @@ public:
 	bool   AGCEnabled;
 
 	LowLevel	driver;
-	FNCO		nco2;
-	FNCO		nco3;
-	FNCO		nco4;
-	NCO			inco;
-	//float last; //tmp
+	NCO		nco2;
+	NCO		nco3;
+	NCO		nco4;
 };

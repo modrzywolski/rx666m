@@ -28,6 +28,9 @@
 #include <boost/program_options/variables_map.hpp>
 #include <boost/format.hpp>
 
+#include "FileWriter.hpp"
+#include "StatsDumper.hpp"
+
 bool 		stopApp = false;
 double		vgaGain;
 double 		attn;
@@ -35,88 +38,6 @@ std::string outputFile;
 
 namespace po = boost::program_options;
 LowLevel driver;
-
-class StatsDumper
-{
-public:
-	StatsDumper(LowLevel &_driver) : driver(_driver), stop(false), showStats(false)
-	{
-		threadHandle = std::thread(&StatsDumper::run, this);
-	}
-	~StatsDumper()
-	{
-		if(threadHandle.joinable())
-		{
-			stop = true;
-			threadHandle.join();
-		}
-	}
-
-	void run()
-	{
-		while(!stop)
-		{
-			if(showStats)
-				driver.DumpReaderStats();
-			std::this_thread::sleep_for(std::chrono::milliseconds(1000));
-		}
-	}
-
-	void show( bool _showStats=true )
-	{
-		showStats = _showStats;
-	}
-
-protected:
-
-	LowLevel&	driver;
-	bool		stop;
-	bool		showStats;
-    std::thread	threadHandle;
-};
-
-class FileWriter
-{
-public:
-	FileWriter() : outf(NULL), file(NULL) {}
-
-	void openFile(const char *filename)
-	{
-		std::ofstream *file = new std::ofstream;
-
-		file->open(filename, std::ios::out | std::ios::binary);
-
-		outf = file;
-	}
-
-	void openStdout()
-	{
-		//std::setvbuf(stdout, NULL, _IOFBF, 4*16*1024*1024);
-		outf = &std::cout;
-	}
-
-	~FileWriter()
-	{
-		if(file)
-		{
-			if(file->is_open())
-				file->close();
-			delete file;
-		}
-	}
-
-	void writeData(RingBufEntry *buf)
-	{
-		if(outf)
-		{
-			outf->write(buf->data.data(), buf->bytesAvail);
-		}
-	}
-
-protected:
-	std::ostream 	*outf;
-	std::ofstream	*file;
-};
 
 void exitHandler( int signum )
 {

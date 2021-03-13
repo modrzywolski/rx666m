@@ -249,7 +249,8 @@ void LowLevel::SetHFGain(uint16_t gain)
 	i2c_trans.len = 1;
 	i2c_trans.data[0]=gain & 0xff;
 	r=ioctl(devHandle, RX666M_I2C_WRITE, &i2c_trans);
-	//fprintf(stderr,"r=%d\n", r);
+	if(r)
+		fprintf(stderr,"RX666M_I2C_WRITE, Error r=%d\n", r);
 }
 
 void LowLevel::SetAD8331Gain(double gain)
@@ -280,7 +281,8 @@ void LowLevel::SetAD8331Gain(double gain)
 	i2c_trans.len = 1;
 	i2c_trans.data[0]=igain & 0xff;
 	r=ioctl(devHandle, RX666M_I2C_WRITE, &i2c_trans);
-	//fprintf(stderr,"r=%d\n", r);
+	if(r)
+		fprintf(stderr,"RX666M_I2C_WRITE Error r=%d\n", r);
 }
 
 void LowLevel::SetHFGain2(double gain)
@@ -377,7 +379,8 @@ uint16_t LowLevel::GetHFGain()
 	i2c_trans.len = 3;
 
 	r=ioctl(devHandle, RX666M_I2C_READ, &i2c_trans);
-	//fprintf(stderr,"r=%d\n", r);
+	if(r)
+		fprintf(stderr,"RX666M_I2C_READ Error r=%d\n", r);
 	//fprintf(stderr,"data[0]=%x\n", (uint32_t)i2c_trans.data[0]);
 	//fprintf(stderr,"data[1]=%x\n", (uint32_t)i2c_trans.data[1]);
 	//printf("data[2]=%x\n", (uint32_t)i2c_trans.data[2]);
@@ -566,7 +569,8 @@ int LowLevel::SendI2cbyte(uint32_t address, uint8_t reg, uint8_t value)
 	}
 
 	r=ioctl(devHandle, RX666M_I2C_WRITE, &i2c_trans);
-	//fprintf(stderr,"r=%d\n", r);
+	if(r)
+		fprintf(stderr,"RX666M_I2C_WRITE Error r=%d\n", r);
 
 	return r;
 }
@@ -596,7 +600,8 @@ int LowLevel::SendI2cbytes(uint32_t address, uint8_t reg, const uint8_t *values,
 	}
 
 	r=ioctl(devHandle, RX666M_I2C_WRITE, &i2c_trans);
-	//fprintf(stderr,"r=%d\n", r);
+	if(r)
+		fprintf(stderr,"RX666M_I2C_WRITE Error r=%d\n", r);
 
 	return r;
 }
@@ -617,7 +622,8 @@ int LowLevel::RecvI2cbytes(uint32_t address, uint8_t reg, uint8_t *values, size_
 	i2c_trans.len = len;
 
 	r=ioctl(devHandle, RX666M_I2C_READ, &i2c_trans);
-	//fprintf(stderr,"r=%d\n", r);
+	if(r)
+		fprintf(stderr,"RX666M_I2C_READ Error r=%d\n", r);
 
 	memcpy(values, i2c_trans.data, i2c_trans.len);
 

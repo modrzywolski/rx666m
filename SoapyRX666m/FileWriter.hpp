@@ -20,37 +20,46 @@
 
 #pragma once
 
-#include <boost/format.hpp>
-
-
-inline std::string human_readable_bytes(double a)
+class FileWriter
 {
-	std::array<const char*, 6> prefixes = {"B", "kiB", "MiB", "GiB", "TiB", "PiB"};
-	size_t i = 0;
+public:
+	FileWriter() : outf(NULL), file(NULL) {}
 
-	while(i+1 < prefixes.size() && a > 1024)
+	void openFile(const char *filename)
 	{
-		a/=1024;
-		i++;
+		std::ofstream *file = new std::ofstream;
+
+		file->open(filename, std::ios::out | std::ios::binary);
+
+		outf = file;
 	}
 
-	return (boost::format("%.2f %s") % a % prefixes[i]).str();
-}
+	void openStdout()
+	{
+		outf = &std::cout;
+	}
 
-inline std::string human_readable_duration(size_t a)
-{
-	std::array<const char*, 3> prefixes = {"h", "m", "s"};
-	std::array<size_t, 3> frac;
+	~FileWriter()
+	{
+		if(file)
+		{
+			if(file->is_open())
+				file->close();
+			delete file;
+		}
+	}
 
-	frac[0]=a / 3600; a -= frac[0] * 3600;
-	frac[1]=a / 60; a -= frac[1] * 60;
-	frac[2]=a;
+	void writeData(RingBufEntry *buf)
+	{
+		if(outf)
+		{
+			outf->write(buf->data.data(), buf->bytesAvail);
+		}
+	}
 
-	return (
-			boost::format("%d%s %d%s %d%s") 
-					% frac[0] % prefixes[0]
-					% frac[1] % prefixes[1]
-					% frac[2] % prefixes[2]
-		).str();
-}
+protected:
+	std::ostream 	*outf;
+	std::ofstream	*file;
+};
+
 

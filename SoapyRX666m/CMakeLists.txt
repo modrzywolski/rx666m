@@ -59,6 +59,6 @@ SOAPY_SDR_MODULE_UTIL(
 )
 endif()
 
-ADD_EXECUTABLE(rx666m_util rx666m_util.cpp LowLevel.cpp Spectrum.cpp tuner_r82xx.cpp)
-TARGET_LINK_LIBRARIES(rx666m_util pthread boost_program_options fftw3 z)
+ADD_EXECUTABLE(rx666m_util rx666m_util.cpp LowLevel.cpp tuner_r82xx.cpp)
+TARGET_LINK_LIBRARIES(rx666m_util pthread boost_program_options)
 

@@ -19,8 +19,6 @@
 
 #include <iostream>
 #include "LowLevel.hpp"
-#include "Spectrum.hpp"
-#include "GzFileWriter.hpp"
 #include <chrono>
 #include <csignal>
 #include <cmath>
@@ -93,6 +91,7 @@ public:
 
 	void openStdout()
 	{
+		//std::setvbuf(stdout, NULL, _IOFBF, 4*16*1024*1024);
 		outf = &std::cout;
 	}
 
@@ -150,9 +149,8 @@ int main(int ac, char *av[])
 			(boost::format("Attenuator level, valid levels: %1%, %2%, %3%") % ATTN2_Gain % ATTN1_Gain % 0.0 ).str().c_str() )
 		("agc", po::bool_switch(), "Enable software AGC")
 		("out",	po::value<std::string>(), "Output file for samples recording")
-		("gz",	po::bool_switch(), "Compress compres data as .gz file")
 		("stdout",	po::bool_switch(), "Output samples to standard output")
-		("spectrum",  po::bool_switch(), "Shows spectrum")
+		("nostats",	po::bool_switch(), "Hides stats")
 	;
 
 	po::variables_map vm;
@@ -166,8 +164,6 @@ int main(int ac, char *av[])
 	}
 
 
-	Spectrum spec;
-
 	signal(SIGINT, exitHandler);
 	signal(SIGTERM, exitHandler); 
 
@@ -179,42 +175,23 @@ int main(int ac, char *av[])
 	driver.SetAGC( vm["agc"].as< bool >() );
 
 	FileWriter fw;
-	GzFileWriter gzfw;
 
-	if(vm["gz"].as< bool >())
-	{
-		if(vm.count("out"))
-			gzfw.openFile(vm["out"].as< std::string >().c_str());
-		else if ( vm["stdout"].as< bool >() )
-			gzfw.openStdout();
-	}
-	else
-	{
-		if(vm.count("out"))
-			fw.openFile(vm["out"].as< std::string >().c_str());
-		else if (vm["stdout"].as< bool >())
-			fw.openStdout();
-	}
+	if(vm.count("out"))
+		fw.openFile(vm["out"].as< std::string >().c_str());
+	else if (vm["stdout"].as< bool >())
+		fw.openStdout();
 
 	driver.ActivateReader();
 	StatsDumper dumper(driver);
 
-	if ( vm["spectrum"].as< bool >() )
-		printf("\033[2J\n");
-
-	if ( !vm["spectrum"].as< bool >() )
+	if (!vm["nostats"].as< bool >())
 		dumper.show();
 
 	while(!stopApp)
 	{
 		using namespace std::placeholders;
 
-		if ( vm["spectrum"].as< bool >() )
-			driver.WriteToFile( std::bind(&Spectrum::feed, &spec, _1) );
-		else if( vm["gz"].as< bool >() )
-			driver.WriteToFile( std::bind(&GzFileWriter::writeData, &gzfw, _1) );
-		else
-			driver.WriteToFile( std::bind(&FileWriter::writeData, &fw, _1) );
+		driver.WriteToFile( std::bind(&FileWriter::writeData, &fw, _1) );
 	}
 
 	std::this_thread::sleep_for(std::chrono::milliseconds(100 + rand()%100));

@@ -359,7 +359,9 @@ void LowLevel::SetAttn(double gain)
 
 void LowLevel::SetAGC(bool on)
 {
+#if AGC
 	peakDetector.SetAGC(on);
+#endif
 }
 
 uint16_t LowLevel::GetHFGain()
@@ -916,15 +918,10 @@ void LowLevel::DumpReaderStats()
 {
 	auto missionTime = boost::posix_time::second_clock::local_time() - missionStart;
 
-	auto out = boost::format( "[Transferred: %s][Lost: %s][Duration: %s][AGC gain: %.1f][Peak: 0x%04x Avg: 0x%04x %s %s]") 
+	auto out = boost::format( "[Transferred: %s][Lost: %s][Duration: %s]") 
 				% human_readable_bytes(getRingBuffer().statsTotal())
 				% human_readable_bytes(getRingBuffer().statsLost())
 				% human_readable_duration(missionTime.total_seconds())
-				% peakDetector.getGain()
-				% peakDetector.getPeakValue()
-				% avgValue
-				% (peakDetector.isFastClipping() ? " FASTCLIPPING" : "")
-				% (peakDetector.isSlowClipping() ? " SLOWCLIPPING" : "")
 				;
 
 	std::cerr << "\33[2K\r" << out; 

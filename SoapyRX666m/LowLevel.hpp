@@ -34,6 +34,12 @@
 
 #include "tuner_r82xx.h"
 #include "RingBuffer.hpp"
+#include "NCO.hpp"
+#include "Utils.hpp"
+
+#if AGC
+	#include "AGC.hpp"
+#endif
 
 const size_t	packet_size = 4096;
 const size_t	num_packets = 256;
@@ -41,283 +47,10 @@ const double AD8331_MinGain = -3.0;
 const double AD8331_MaxGain = 45.0;
 const double ATTN1_Gain = -10.0;
 const double ATTN2_Gain = -20.0;
-const uint32_t clippingLevel = 0xf800;
-const size_t   clippingRateThreshold = 0;
-const double lowThreshold = 0.8;
 const double totalGainMax = AD8331_MaxGain;
 const double totalGainMin = ATTN2_Gain + AD8331_MinGain;
 
 
-inline std::string human_readable_bytes(double a)
-{
-	std::array<const char*, 6> prefixes = {"B", "kiB", "MiB", "GiB", "TiB", "PiB"};
-	size_t i = 0;
-
-	while(i+1 < prefixes.size() && a > 1024)
-	{
-		a/=1024;
-		i++;
-	}
-
-	return (boost::format("%.2f %s") % a % prefixes[i]).str();
-}
-
-inline std::string human_readable_duration(size_t a)
-{
-	std::array<const char*, 3> prefixes = {"h", "m", "s"};
-	std::array<size_t, 3> frac;
-
-	frac[0]=a / 3600; a -= frac[0] * 3600;
-	frac[1]=a / 60; a -= frac[1] * 60;
-	frac[2]=a;
-
-	return (
-			boost::format("%d%s %d%s %d%s") 
-					% frac[0] % prefixes[0]
-					% frac[1] % prefixes[1]
-					% frac[2] % prefixes[2]
-		).str();
-}
-
-
-class NCO
-{
-public:
-	const uint64_t fclk = 64000000ULL;
-	const uint64_t freq =  fclk/16;
-	NCO(): dphase( freq * (1ULL<<32) / fclk ), phase(0)
-	{
-	}
-
-	uint16_t	operator()()
-	{
-		double arg = 2.0*M_PI*(phase >> 16)/(1lu<<16);
-		int32_t out = (1lu<<15) + (::sin(arg) * ((1lu<<15)-1));
-
-		phase += dphase;
-
-		return out;
-	}
-
-protected:
-	uint32_t	dphase;
-	uint32_t	phase;
-};
-
-class FNCO
-{
-public:
-	const static uint64_t fclk = 64000000ULL;
-	const static uint64_t freq =  fclk/16;
-	FNCO(): dphase( freq * (1ULL<<32) / fclk ), phase(0)
-	{
-	}
-
-	void setfreq(uint64_t f)
-	{
-		dphase = f * (1ULL<<32) / fclk;
-	}
-
-	double	operator()()
-	{
-		double arg = 2.0*M_PI*(phase >> 16)/(1lu<<16);
-
-		phase += dphase;
-
-		return ::sin(arg);
-	}
-
-protected:
-	uint32_t	dphase;
-	uint32_t	phase;
-};
-
-
-class LPF
-{
-public:
-	LPF() : state(0), alpha(0.9)
-	{
-	}
-	
-	double feed(double value)
-	{
-		value = alpha * value + (1-alpha) * state;
-		state = value;
-
-		return value;
-	}
-
-protected:
-	double 	state;
-	double 	alpha;
-};
-
-class AGC
-{
-public:
-	const double decay_factor = 0.90;
-
-	typedef void (*GainSetFunc)(double gain);
-
-	AGC() : peakValue(0), stopWorker(false)
-	{
-		attackRate = 1;
-		decayRate = 2;
-		gain = 0;
-		ignoreTransients = 0;
-		agcEnabled = false;
-		fastClippingEvents = 0;
-		slowClippingEvents = 0;
-
-		worker = std::thread(&AGC::peakDecay, this);
-	}
-
-	~AGC()
-	{
-		if(worker.joinable())
-		{
-			stopWorker=true;
-			worker.join();
-		}
-	}
-
-	void SetAGC(bool on)
-	{
-		agcEnabled = on;
-	}
-
-	template<class GainSetFunc>
-	inline void feed(uint32_t value, GainSetFunc gainSet)
-	{
-		if(ignoreTransients)
-		{
-			ignoreTransients--;
-			return;
-		}
-
-		if(value > clippingLevel)
-		{
-			++fastClippingEvents;
-		}
-
-		value = lpf.feed(value);
-		if(value > peakValue)
-		{
-			peakValue = value;
-		}
-
-		if(value > clippingLevel)
-		{
-			++slowClippingEvents;
-			++clippingRate;
-		}
-
-		if( performDecay.fetch_and(false) )
-		{
-			double newGain = calcGain(peakValue);
-
-			if(fabs(newGain - gain) >= 0.1)
-			{
-				ignoreTransients = 1;
-				if(agcEnabled)
-				{
-					//std::cerr << "set gain" << std::endl;
-					gainSet(gain);
-				}
-
-			}
-			clippingRate = 0;
-			gain = newGain;
-
-			peakValue = static_cast<double>(peakValue) * decay_factor;
-		}
-	}
-
-	double calcGain(double value)
-	{
-		double rate, newGain;
-
-
-		/*if(value > clippingLevel)
-		{
-			++clippingEvents;
-			++clippingRate;
-		}*/
-
-		if(clippingRate > clippingRateThreshold)
-			rate = -decayRate;
-		else if(value < lowThreshold * clippingLevel)
-			rate = attackRate;
-		else
-			rate = 0.0;
-
-		newGain = gain + rate;
-		if(newGain > totalGainMax)
-			newGain = totalGainMax;
-		else if(newGain < totalGainMin)
-			newGain = totalGainMin;
-
-#if 1
-		if(agcEnabled)
-		{
-			std::cerr << "Level: " << std::hex << (int)getPeakValue() << (isFastClipping() ? " FASTCLIPPING" : "") << (isSlowClipping() ? " SLOWCLIPPING" : "") << std::endl;
-
-			std::cerr << "NewGain: " << newGain << std::endl;
-		}
-#endif
-
-		return newGain;
-	}
-
-	void peakDecay()
-	{
-		while(!stopWorker)
-		{
-			performDecay = true;
-
-
-			std::this_thread::sleep_for(std::chrono::milliseconds(100));
-		}
-	}
-
-	uint16_t getPeakValue()
-	{
-		return peakValue;
-	}
-
-	bool isFastClipping()
-	{
-		return std::atomic_exchange(&fastClippingEvents, size_t(0)) > 0;
-	}
-
-	bool isSlowClipping()
-	{
-		return std::atomic_exchange(&slowClippingEvents, size_t(0)) > 0;
-	}
-
-	double getGain()
-	{
-		return gain;
-	}
-
-protected:
-	std::atomic<uint32_t> peakValue;
-	std::thread		worker;
-	bool			stopWorker;
-	std::atomic<int>	performDecay;
-	std::atomic<size_t>	clippingEvents;
-	std::atomic<size_t> fastClippingEvents;	
-	std::atomic<size_t>	slowClippingEvents;
-	std::atomic<size_t> clippingRate;
-
-	LPF		lpf;
-	double	attackRate;
-	double	decayRate;
-	double  gain;
-	size_t	ignoreTransients;
-	bool	agcEnabled;
-};
 
 class LowLevel
 {
@@ -417,14 +150,14 @@ protected:
 	bool DCEnabled;
 	r82xx_priv tuner_data;
 
-	uint16_t	adcPeakLevel;
 	bool StopReader;
 	std::thread ReadThreadHandle;
 	
 	RingBuf			ringBuffer;
 	boost::posix_time::ptime	missionStart;
-	uint16_t	avgValue;
+#if AGC
 	AGC	peakDetector;
+#endif
 	NCO nco;
 };
 

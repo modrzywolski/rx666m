@@ -35,7 +35,6 @@
 
 #include "../common/rx666m_ioctl.h"
 
-#define BLADE_USB_CMD_QUERY_VERSION             0
 #define USB_CYPRESS_VENDOR_ID   				0x04b4
 #define USB_FX3_PRODUCT_ID      				0x00f3
 #define USB_RX666M_MINOR_BASE					193
@@ -425,7 +424,7 @@ static void rx666m_read_cb(struct urb *urb)
 	}
 
 	if(!data_buf->taken)
-		dev_err_ratelimited(&dev->interface->dev, "buffer not taken %p\n", data_buf);
+		dev_err_ratelimited(&dev->interface->dev, "Buffer not taken %p\n", data_buf);
 
     spin_lock_irqsave(&dev->data_in_lock, flags);
 	data_buf->taken=0;
@@ -491,7 +490,7 @@ static int rx666m_start(rx666m_device_t *dev)
     void *buf;
     struct urb *urb;
 
-	dev_info(&dev->interface->dev, "RX666m starting\n");
+	dev_info(&dev->interface->dev, "starting\n");
 
     dev->rx_en = 0;
     atomic_set(&dev->data_in_ready, 0);
@@ -561,7 +560,7 @@ static int rx666m_start(rx666m_device_t *dev)
 		stats_dumper_start_workqueue( &dev->stats_dumper_priv, dev );
 	#endif
 
-	dev_info(&dev->interface->dev, "RX666m started\n");
+	dev_info(&dev->interface->dev, "started\n");
 
     return 0;
 }
@@ -603,7 +602,7 @@ static void rx666m_stop(rx666m_device_t *dev)
 	INIT_LIST_HEAD(&dev->data_in_bufs_busy);
 	INIT_LIST_HEAD(&dev->data_in_bufs_ready);
 
-	dev_info(&dev->interface->dev, "RX666m stop: avail=%d busy=%d\n", list_empty(&dev->data_in_bufs_avail), list_empty(&dev->data_in_bufs_busy));
+	dev_info(&dev->interface->dev, "stop: avail=%d busy=%d\n", list_empty(&dev->data_in_bufs_avail), list_empty(&dev->data_in_bufs_busy));
 }
 
 static int disable_rx(rx666m_device_t *dev)
@@ -611,7 +610,7 @@ static int disable_rx(rx666m_device_t *dev)
     int ret;
 	unsigned long flags;
 
-	dev_info(&dev->interface->dev, "RX666m disabling rx\n");
+	dev_info(&dev->interface->dev, "disabling rx\n");
 
     if (dev->intnum != 1)
         return -1;
@@ -639,7 +638,7 @@ static int disable_rx(rx666m_device_t *dev)
 	spin_unlock_irqrestore(&dev->data_in_lock, flags);
 
 
-	dev_info(&dev->interface->dev, "RX666m rx disabled\n");
+	dev_info(&dev->interface->dev, "rx disabled\n");
 
     return ret;
 }
@@ -651,7 +650,7 @@ static int enable_rx(rx666m_device_t *dev)
     unsigned int val;
     val = 1;
 
-	dev_info(&dev->interface->dev, "RX666m enabling rx\n");
+	dev_info(&dev->interface->dev, "enabling rx\n");
 
     if (dev->intnum != 1)
 	{
@@ -678,7 +677,7 @@ static int enable_rx(rx666m_device_t *dev)
     }
 
 
-	dev_info(&dev->interface->dev, "RX666m rx enabled\n");
+	dev_info(&dev->interface->dev, "rx enabled\n");
 
     return ret;
 }
@@ -695,7 +694,7 @@ static ssize_t rx666m_read(struct file *file, char __user *buf, size_t count, lo
 
     if (dev->intnum != 1)
 	{
-		dev_err_ratelimited(&dev->interface->dev, "RX666m read intnum\n");
+		dev_err_ratelimited(&dev->interface->dev, "read intnum\n");
         return -1;
     }
 
@@ -703,7 +702,7 @@ static ssize_t rx666m_read(struct file *file, char __user *buf, size_t count, lo
 	{
         if (file != dev->reader)
 		{
-			dev_err_ratelimited(&dev->interface->dev, "RX666m read EPERM\n");
+			dev_err_ratelimited(&dev->interface->dev, "read EPERM\n");
             return -EPERM;
         }
     }
@@ -714,7 +713,7 @@ static ssize_t rx666m_read(struct file *file, char __user *buf, size_t count, lo
 
     if (dev->disconnecting)
 	{
-		dev_err_ratelimited(&dev->interface->dev, "RX666m read ENODEV\n");
+		dev_err_ratelimited(&dev->interface->dev, "read ENODEV\n");
         return -ENODEV;
 	}
 
@@ -722,7 +721,7 @@ static ssize_t rx666m_read(struct file *file, char __user *buf, size_t count, lo
 	{
         if (enable_rx(dev))
 		{
-			dev_err_ratelimited(&dev->interface->dev, "RX666m read EINVAL\n");
+			dev_err_ratelimited(&dev->interface->dev, "read EINVAL\n");
             return -ENODEV;
         }
     }
@@ -782,12 +781,12 @@ static ssize_t rx666m_read(struct file *file, char __user *buf, size_t count, lo
             ret = wait_event_interruptible_timeout(dev->data_in_wait, atomic_read(&dev->data_in_ready), 60 * HZ);
             if (ret < 0)
 			{
-				dev_info(&dev->interface->dev, "RX666m read error - wait_event_interruptible_timeout\n");
+				dev_info(&dev->interface->dev, "read error - wait_event_interruptible_timeout\n");
                 break;
             }
 			else if (ret == 0)
 			{
-				dev_info(&dev->interface->dev, "RX666m read timeout\n");
+				dev_info(&dev->interface->dev, "read timeout\n");
                 ret = -ETIMEDOUT;
                 break;
             }
@@ -800,7 +799,7 @@ static ssize_t rx666m_read(struct file *file, char __user *buf, size_t count, lo
 
 	if(ret<0)
 	{
-		dev_info(&dev->interface->dev, "RX666m read error ret=%ld\n", ret);
+		dev_info(&dev->interface->dev, "read error ret=%ld\n", ret);
 	}
 
 	dev->last_read_ret = ret;
@@ -830,7 +829,7 @@ long rx666m_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
     dev = file->private_data;
     data = (void __user *)arg;
 
-	dev_info(&dev->interface->dev, "RX666m ioctl: %d \n", cmd);
+	dev_info(&dev->interface->dev, "ioctl: %d \n", cmd);
 
 	if (_IOC_TYPE(cmd) != MYDRBASE)
 		return -EINVAL;
@@ -1044,7 +1043,7 @@ long rx666m_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 			break;
     }
 
-	dev_info(&dev->interface->dev, "RX666m ioctl end: %d retval=%d\n", (int)cmd, (int)retval);
+	dev_info(&dev->interface->dev, "ioctl end: %d retval=%d\n", (int)cmd, (int)retval);
 
     return retval;
 }
@@ -1055,7 +1054,7 @@ static int rx666m_open(struct inode *inode, struct file *file)
     struct usb_interface *interface;
     int subminor;
 
-	printk("RX666m open\n");
+	printk("open\n");
 
     subminor = iminor(inode);
 
@@ -1075,7 +1074,7 @@ static int rx666m_open(struct inode *inode, struct file *file)
 
     file->private_data = dev;
 
-	dev_info(&interface->dev, "RX666m opened\n");
+	dev_info(&interface->dev, "opened\n");
 
     return 0;
 }
@@ -1084,7 +1083,7 @@ static int rx666m_release(struct inode *inode, struct file *file)
 {
     rx666m_device_t *dev;
 
-	printk("RX666m release\n");
+	printk("release\n");
 
     dev = (rx666m_device_t *)file->private_data;
 
@@ -1097,7 +1096,7 @@ static int rx666m_release(struct inode *inode, struct file *file)
         dev->reader = NULL;
     }
 
-	printk("RX666m released");
+	printk("released");
 
     return 0;
 }
@@ -1137,7 +1136,7 @@ static int rx666m_probe(struct usb_interface *interface, const struct usb_device
 	struct usb_device *udev;
     int retval;
 
-	dev_info(&interface->dev, "RX666m probing...\n");
+	dev_info(&interface->dev, "probing...\n");
 
     if (interface->cur_altsetting->desc.bInterfaceNumber != 0)
 	{
@@ -1187,7 +1186,7 @@ static int rx666m_probe(struct usb_interface *interface, const struct usb_device
     }
 
 
-    dev_info(&interface->dev, "RX666m device is now attached2\n");
+    dev_info(&interface->dev, "device is now attached\n");
     return 0;
 
 error_oom:
@@ -1217,7 +1216,7 @@ static void rx666m_disconnect(struct usb_interface *interface)
 
     usb_put_dev(dev->udev);
 
-    dev_info(&interface->dev, "RX666m device has been disconnected\n");
+    dev_info(&interface->dev, "device has been disconnected\n");
 
     kfree(dev);
 }

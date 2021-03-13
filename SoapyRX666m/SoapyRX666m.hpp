@@ -34,10 +34,6 @@
 #include <LowLevel.hpp>
 
 
-//#define DEFAULT_BUFFER_LENGTH  4096*128 //128*64 //(16 * 32 * 512)
-//#define DEFAULT_NUM_BUFFERS 32
-//#define BYTES_PER_SAMPLE 2
-
 class SoapyRX666m: public SoapySDR::Device
 {
 public:

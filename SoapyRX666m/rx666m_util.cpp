@@ -115,8 +115,6 @@ int main(int ac, char *av[])
 		driver.WriteToFile( std::bind(&FileWriter::writeData, &fw, _1) );
 	}
 
-	std::this_thread::sleep_for(std::chrono::milliseconds(100 + rand()%100));
-
 	driver.DumpReaderStats();
 	driver.DeactivateReader();
 

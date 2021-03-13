@@ -285,7 +285,7 @@ void LowLevel::SetAD8331Gain(double gain)
 		fprintf(stderr,"RX666M_I2C_WRITE Error r=%d\n", r);
 }
 
-void LowLevel::SetHFGain2(double gain)
+void LowLevel::SetHFGainDistribute(double gain)
 {
 	if( gain <= ATTN2_Gain )
 	{
@@ -401,12 +401,10 @@ int LowLevel::Read(void *buffer, size_t cnt)
 	uint16_t *ptr=reinterpret_cast<uint16_t*>(buffer);
 
 	r = read(devHandle, buffer, cnt);
-	//r = cnt;
-	//fprintf(stderr, "r=%d\n", r);
 
 	using namespace std::placeholders;
 
-	auto gainSet = std::bind(&LowLevel::SetHFGain2, this, _1);
+	[[maybe_unused]] auto gainSet = std::bind(&LowLevel::SetHFGainDistribute, this, _1);
 
 	if(r > 0)
 	{
@@ -430,32 +428,7 @@ int LowLevel::Read(void *buffer, size_t cnt)
 				ptr[i]=__builtin_bswap16(ptr[i]);
 			}
 		}
-
-		static uint16_t aa=0;
-		if(0)
-		{
-			for(i=0;i<r/4;i+=2)
-			{
-				ptr[i*2]=aa;
-				ptr[i*2+1]=rand()%65536lu;
-			}
-		}
-		++aa;
-
 	}
-
-#if 0
-	uint64_t avg =0;
-	for(i=0;i<r/2;i++)
-	{
-		avg += ptr[i];
-	}
-	if(r >= 2)
-	{
-		avg /= r/2;
-		avgValue = avg;
-	}
-#endif
 
 #if 0
 	if(r > 0)
@@ -562,11 +535,13 @@ int LowLevel::SendI2cbyte(uint32_t address, uint8_t reg, uint8_t value)
 	i2c_trans.len = 1;
 	i2c_trans.data[0]=value;
 
+#if 0
 	int i;
     for(i=0;i<i2c_trans.len;i++)
 	{
-        //fprintf(stderr, "reg[%03x] <- 0x%02x\n", reg+i, (int)i2c_trans.data[i]);
+        fprintf(stderr, "reg[%03x] <- 0x%02x\n", reg+i, (int)i2c_trans.data[i]);
 	}
+#endif
 
 	r=ioctl(devHandle, RX666M_I2C_WRITE, &i2c_trans);
 	if(r)
@@ -584,8 +559,6 @@ int LowLevel::SendI2cbytes(uint32_t address, uint8_t reg, const uint8_t *values,
 
 	rx666m_ioctl_i2c_transfer_t i2c_trans;
 
-	//fprintf(stderr,"sizeof(i2c_trans)=%ld\n", sizeof(i2c_trans));
-
 	memset(&i2c_trans, 0, sizeof(i2c_trans));
 
 	i2c_trans.address = address;
@@ -593,11 +566,13 @@ int LowLevel::SendI2cbytes(uint32_t address, uint8_t reg, const uint8_t *values,
 	i2c_trans.len = len;
 	memcpy(&i2c_trans.data, values, len);
 
+#if 0
 	int i;
     for(i=0;i<i2c_trans.len;i++)
 	{
-        //fprintf(stderr,"reg[%03x] <- 0x%02x\n", reg+i, (int)i2c_trans.data[i]);
+        fprintf(stderr,"reg[%03x] <- 0x%02x\n", reg+i, (int)i2c_trans.data[i]);
 	}
+#endif
 
 	r=ioctl(devHandle, RX666M_I2C_WRITE, &i2c_trans);
 	if(r)

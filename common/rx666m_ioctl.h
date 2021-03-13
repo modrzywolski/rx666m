@@ -1,8 +1,27 @@
+/*
+ * RX666m driver
+ * Copyright (C) 2020 Marcin Odrzywolski <emk6@wp.pl>
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation; either version 2
+ * of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, write to the Free Software Foundation, Inc.,
+ * 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+
 #include <linux/ioctl.h>
 
-#define SI5351_ADDR                                (0x60 << 1 )
-#define MCP4725_ADDR								(0x61 << 1)
-#define R820T2_ADDR      (0x34) //  ((0x1A)<<1)
+#define SI5351_ADDR                     (0x60 << 1 )
+#define MCP4725_ADDR					(0x61 << 1)
+#define R820T2_ADDR      				(0x34)
 
 #define MYDRBASE 'k'
 #define RX666M_IS_BOOTLOADER_RUNNING	_IO(  MYDRBASE, 1)

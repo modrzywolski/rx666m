@@ -42,7 +42,6 @@
 #endif
 
 const size_t	packet_size = 4096;
-const size_t	num_packets = 256;
 const double AD8331_MinGain = -3.0;
 const double AD8331_MaxGain = 45.0;
 const double ATTN1_Gain = -10.0;
@@ -63,7 +62,7 @@ public:
 
 	//Control Interface
 	void SetHFGain(uint16_t gain);
-	void SetHFGain2(double gain);
+	void SetHFGainDistribute(double gain);
 	void SetAD8331Gain(double gain);
 	uint16_t GetHFGain();
 	void SetAttn(double gain);

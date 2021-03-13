@@ -33,12 +33,6 @@ constexpr size_t	ring_total_entries = 128;
 class RingBufEntry
 {
 public:
-
-	RingBufEntry()
-	{
-		std::generate(data.begin(), data.end(), []() { return 0*rand()%0x100; } );  //tmp
-	}
-
 	size_t						bytesRead;
 	size_t						bytesAvail;
 	std::array<char, ring_chunk_size> data;

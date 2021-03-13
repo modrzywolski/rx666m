@@ -33,39 +33,10 @@
 
 #include <LowLevel.hpp>
 
-#if 0
-//stubs!!!!!
-typedef void rtlsdr_dev_t;
-typedef int rtlsdr_tuner;
-typedef void (*rtlsdr_read_async_cb_t)(unsigned char*, uint32_t, void*);
 
-inline int rtlsdr_set_center_freq(rtlsdr_dev_t *dev, uint32_t freq) { return 0; }
-inline int rtlsdr_set_offset_tuning(rtlsdr_dev_t *dev, int on) { return 0; }
-inline int rtlsdr_cancel_async(rtlsdr_dev_t *dev) { return 0; }
-inline int rtlsdr_set_agc_mode(rtlsdr_dev_t *dev, int on) { return 0; }
-inline int rtlsdr_set_direct_sampling(rtlsdr_dev_t *dev, int on) { return 0; }
-inline int rtlsdr_set_sample_rate(rtlsdr_dev_t *dev, uint32_t rate) { return 0; }
-inline int rtlsdr_set_freq_correction(rtlsdr_dev_t *dev, int ppm) { return 0; }
-inline int rtlsdr_set_tuner_if_gain(rtlsdr_dev_t *dev, int stage, int gain) { return 0; }
-inline int rtlsdr_open(rtlsdr_dev_t **dev, uint32_t index)  { return 0; }
-inline int rtlsdr_close(rtlsdr_dev_t *dev)  { return 0; }
-inline int rtlsdr_set_tuner_gain(rtlsdr_dev_t *dev, int gain) { return 0; }
-inline int rtlsdr_set_tuner_gain_mode(rtlsdr_dev_t *dev, int manual) { return 0; }
-inline int rtlsdr_get_tuner_gain(rtlsdr_dev_t *dev) { return 0; }
-inline int rtlsdr_get_tuner_gains(rtlsdr_dev_t *dev, int *gains) { return 0; }
-inline int rtlsdr_get_index_by_serial(const char *serial) { return 0; }
-inline int rtlsdr_reset_buffer(rtlsdr_dev_t *dev) { return 0; }
-inline int rtlsdr_read_async(rtlsdr_dev_t *dev, rtlsdr_read_async_cb_t cb, void *ctx, uint32_t buf_num, uint32_t buf_len) { return 0; }
-
-typedef enum rtlsdrRXFormat
-{
-    RTL_RX_FORMAT_FLOAT32, RTL_RX_FORMAT_INT16, RTL_RX_FORMAT_INT8
-} rtlsdrRXFormat;
-#endif
-
-#define DEFAULT_BUFFER_LENGTH  4096*128 //128*64 //(16 * 32 * 512)
-#define DEFAULT_NUM_BUFFERS 32
-#define BYTES_PER_SAMPLE 2
+//#define DEFAULT_BUFFER_LENGTH  4096*128 //128*64 //(16 * 32 * 512)
+//#define DEFAULT_NUM_BUFFERS 32
+//#define BYTES_PER_SAMPLE 2
 
 class SoapyRX666m: public SoapySDR::Device
 {
@@ -252,44 +223,16 @@ private:
 	void convertSamples( void *out_buff, void *in_buff,  size_t st, size_t n);
 
     //device handle
-    int deviceId;
+    //int deviceId;
 
     //cached settings
     uint32_t sampleRate, centerFrequency;
-    int ppm, directSamplingMode;
-    size_t numBuffers, bufferLength, asyncBuffs;
-    bool offsetMode;
+    int ppm;//, directSamplingMode;
+    //size_t numBuffers, bufferLength, asyncBuffs;
+    //bool offsetMode;
     std::atomic<long long> ticks;
 
 public:
-    struct Buffer
-    {
-        unsigned long long tick;
-        std::vector<signed char> data;
-    };
-
-    //async api usage
-    std::thread _rx_async_thread;
-    void rx_async_operation(void);
-    void rx_callback(unsigned char *buf, uint32_t len);
-	FILE *devicefile;
-
-    std::mutex _buf_mutex;
-    std::condition_variable _buf_cond;
-
-    std::vector<Buffer> _buffs;
-    size_t	_buf_head;
-    size_t	_buf_tail;
-    std::atomic<size_t>	_buf_count;
-    signed char *_currentBuff;
-    std::atomic<bool> _overflowEvent;
-    size_t _currentHandle;
-    size_t bufferedElems;
-    long long bufTicks;
-    //std::atomic<bool> resetBuffer;
-    std::atomic<bool> freqChanging;
-    std::atomic<bool> streamDeactivating;
-
 	double HFAttn;
 	double HFGain;
 	double UHFGain;

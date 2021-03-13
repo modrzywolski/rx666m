@@ -27,28 +27,16 @@
 
 
 SoapyRX666m::SoapyRX666m(const SoapySDR::Kwargs &args):
-    deviceId(-1),
     sampleRate(64000000),
-    centerFrequency(16000000),
+    centerFrequency(0),
     ppm(0),
-    directSamplingMode(1),
-    numBuffers(DEFAULT_NUM_BUFFERS),
-    bufferLength(DEFAULT_BUFFER_LENGTH),
-    offsetMode(false),
     ticks(false),
-    bufferedElems(0),
-    //resetBuffer(false),
-    freqChanging(false),
-    streamDeactivating(true),
 	HFAttn(0.0),
 	HFGain(0.0),
 	UHFGain(0.0),
 	AGCEnabled(false)
 {
     if (args.count("label") != 0) SoapySDR_logf(SOAPY_SDR_INFO, "Opening %s...", args.at("label").c_str());
-
-    //if a serial is not present, then findRTLSDR had zero devices enumerated
-    if (args.count("serial") == 0) throw std::runtime_error("No RX666m device found!");
 
 	nco3.setfreq(FNCO::fclk/4);
 	nco4.setfreq(FNCO::fclk/16);
@@ -79,7 +67,6 @@ SoapySDR::Kwargs SoapyRX666m::getHardwareInfo(void) const
     SoapySDR::Kwargs args;
 
     args["origin"] = "https://github.com/pothosware/SoapyRX666m";
-    args["index"] = std::to_string(deviceId);
 
     return args;
 }
@@ -153,8 +140,6 @@ double SoapyRX666m::getFrequencyCorrection(const int direction, const size_t cha
 
 std::vector<std::string> SoapyRX666m::listGains(const int direction, const size_t channel) const
 {
-    //list available gain elements,
-    //the functions below have a "name" parameter
     std::vector<std::string> results;
 
 	results.push_back("HFVGA");
@@ -180,15 +165,6 @@ bool SoapyRX666m::getGainMode(const int direction, const size_t channel) const
     return false;
 }
 
-#if 0
-void SoapyRX666m::setGain(const int direction, const size_t channel, const double value)
-{
-    //set the overall gain by distributing it across available gain elements
-    //OR delete this function to use SoapySDR's default gain distribution algorithm...
-    //SoapySDR::Device::setGain(direction, channel, value);
-}
-#endif
-
 void SoapyRX666m::setGain(const int direction, const size_t channel, const std::string &name, const double value)
 {
 	printf("setting gain %s to %lf\n", name.c_str(), value);
@@ -198,13 +174,11 @@ void SoapyRX666m::setGain(const int direction, const size_t channel, const std::
 		if(name == "HFVGA")
 		{
 			HFGain = value;
-			//driver.SetHFGain((value-3.0) / 45 * 0xfff );
 			driver.SetAD8331Gain(HFGain);
 		}
 		else if(name == "UHFVGA")
 		{
 			UHFGain = value;
-			//driver.SetUHFGain(value * 0xfff / 60.0);
 			driver.SetDCGain(UHFGain);
 		}
 		else if(name == "HFATTN")
@@ -229,7 +203,6 @@ double SoapyRX666m::getGain(const int direction, const size_t channel, const std
 	}
 	else if(name == "HFATTN")
 	{
-		//printf("HFAttn=%lf\n", HFAttn);
 		return HFAttn;
 	}
 
@@ -238,7 +211,6 @@ double SoapyRX666m::getGain(const int direction, const size_t channel, const std
 
 SoapySDR::Range SoapyRX666m::getGainRange(const int direction, const size_t channel, const std::string &name) const
 {
-	//std::cerr << "getGainRange" << std::endl;
 	if(name == "HFVGA")
 	{
 		return SoapySDR::Range(-3, 45);
@@ -333,8 +305,6 @@ SoapySDR::ArgInfoList SoapyRX666m::getFrequencyArgsInfo(const int direction, con
 	
 	std::cerr << "getFrequencyArgsInfo" << std::endl;
 
-    // TODO: frequency arguments
-
     return freqArgs;
 }
 
@@ -348,7 +318,7 @@ void SoapyRX666m::setSampleRate(const int direction, const size_t channel, const
 
     long long ns = SoapySDR::ticksToTimeNs(ticks, sampleRate);
     sampleRate = rate;
-//    resetBuffer = true;
+
     SoapySDR_logf(SOAPY_SDR_DEBUG, "Setting sample rate: %d", sampleRate);
 
     ticks = SoapySDR::timeNsToTicks(ns, sampleRate);
@@ -372,25 +342,16 @@ SoapySDR::RangeList SoapyRX666m::getSampleRateRange(const int direction, const s
 	return sr;
 }
 
-#if 1
 std::vector<double> SoapyRX666m::listSampleRates(const int direction, const size_t channel) const
 {
     std::vector<double> results;
 
 	std::cerr << "listSampleRates" << std::endl;
 
-#if 0
-    results.push_back( 2000000);
-    results.push_back( 4000000);
-    results.push_back( 8000000);
-    results.push_back(16000000);
-    results.push_back(32000000);
-#endif
     results.push_back(64000000);
 
     return results;
 }
-#endif
 
 void SoapyRX666m::setBandwidth(const int direction, const size_t channel, const double bw)
 {
@@ -399,7 +360,6 @@ void SoapyRX666m::setBandwidth(const int direction, const size_t channel, const 
 
 double SoapyRX666m::getBandwidth(const int direction, const size_t channel) const
 {
-   // return SoapySDR::Device::getBandwidth(direction, channel);
    return 32000000;
 }
 
@@ -458,103 +418,15 @@ SoapySDR::ArgInfoList SoapyRX666m::getSettingInfo(void) const
 {
     SoapySDR::ArgInfoList setArgs;
 
-    SoapySDR::ArgInfo directSampArg;
-
-    directSampArg.key = "direct_samp";
-    directSampArg.value = "1";
-    directSampArg.name = "Direct Sampling";
-    directSampArg.description = "RTL-SDR Direct Sampling Mode";
-    directSampArg.type = SoapySDR::ArgInfo::STRING;
-    directSampArg.options.push_back("0");
-    directSampArg.optionNames.push_back("Off");
-    directSampArg.options.push_back("1");
-    directSampArg.optionNames.push_back("I-ADC");
-    directSampArg.options.push_back("2");
-    directSampArg.optionNames.push_back("Q-ADC");
-
-    setArgs.push_back(directSampArg);
-
-    SoapySDR::ArgInfo offsetTuneArg;
-
-    offsetTuneArg.key = "offset_tune";
-    offsetTuneArg.value = "false";
-    offsetTuneArg.name = "Offset Tune";
-    offsetTuneArg.description = "RTL-SDR Offset Tuning Mode";
-    offsetTuneArg.type = SoapySDR::ArgInfo::BOOL;
-    setArgs.push_back(offsetTuneArg);
-
-    SoapySDR::ArgInfo iqSwapArg;
-
-    iqSwapArg.key = "iq_swap";
-    iqSwapArg.value = "false";
-    iqSwapArg.name = "I/Q Swap";
-    iqSwapArg.description = "RTL-SDR I/Q Swap Mode";
-    iqSwapArg.type = SoapySDR::ArgInfo::BOOL;
-
-    setArgs.push_back(iqSwapArg);
-
-    SoapySDR::ArgInfo digitalAGCArg;
-
-    digitalAGCArg.key = "digital_agc";
-    digitalAGCArg.value = "false";
-    digitalAGCArg.name = "Digital AGC";
-    digitalAGCArg.description = "RTL-SDR digital AGC Mode";
-    digitalAGCArg.type = SoapySDR::ArgInfo::BOOL;
-
-    setArgs.push_back(digitalAGCArg);
-
-#if HAS_RTLSDR_SET_BIAS_TEE
-    SoapySDR::ArgInfo biasTeeArg;
-
-    biasTeeArg.key = "biastee";
-    biasTeeArg.value = "false";
-    biasTeeArg.name = "Bias Tee";
-    biasTeeArg.description = "RTL-SDR Blog V.3 Bias-Tee Mode";
-    biasTeeArg.type = SoapySDR::ArgInfo::BOOL;
-
-    setArgs.push_back(biasTeeArg);
-#endif
-
-    SoapySDR_logf(SOAPY_SDR_DEBUG, "SETARGS?");
-
     return setArgs;
 }
 
 void SoapyRX666m::writeSetting(const std::string &key, const std::string &value)
 {
-#if 0
-    if (key == "direct_samp")
-    {
-        try
-        {
-            directSamplingMode = std::stoi(value);
-        }
-        catch (const std::invalid_argument &) {
-            SoapySDR_logf(SOAPY_SDR_ERROR, "RTL-SDR invalid direct sampling mode '%s', [0:Off, 1:I-ADC, 2:Q-ADC]", value.c_str());
-            directSamplingMode = 0;
-        }
-        SoapySDR_logf(SOAPY_SDR_DEBUG, "RTL-SDR direct sampling mode: %d", directSamplingMode);
-        rtlsdr_set_direct_sampling(dev, directSamplingMode);
-    }
-    else if (key == "offset_tune")
-    {
-        offsetMode = (value == "true") ? true : false;
-        SoapySDR_logf(SOAPY_SDR_DEBUG, "RTL-SDR offset_tune mode: %s", offsetMode ? "true" : "false");
-        rtlsdr_set_offset_tuning(dev, offsetMode ? 1 : 0);
-    }
-	#endif
 }
 
 std::string SoapyRX666m::readSetting(const std::string &key) const
 {
-#if 0
-    if (key == "direct_samp") {
-        return std::to_string(directSamplingMode);
-    } else if (key == "offset_tune") {
-        return offsetMode?"true":"false";
-    }
-#endif
-
     SoapySDR_logf(SOAPY_SDR_WARNING, "Unknown setting '%s'", key.c_str());
     return "";
 }

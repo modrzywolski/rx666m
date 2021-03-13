@@ -47,9 +47,6 @@ const double lowThreshold = 0.8;
 const double totalGainMax = AD8331_MaxGain;
 const double totalGainMin = ATTN2_Gain + AD8331_MinGain;
 
-typedef uint32_t UINT32; //tmp
-typedef uint8_t UINT8; //tmp
-
 
 inline std::string human_readable_bytes(double a)
 {
@@ -97,7 +94,6 @@ public:
 		double arg = 2.0*M_PI*(phase >> 16)/(1lu<<16);
 		int32_t out = (1lu<<15) + (::sin(arg) * ((1lu<<15)-1));
 
-		//printf("[arg=%lf, out=%08X]\n", arg, out);
 		phase += dphase;
 
 		return out;
@@ -323,122 +319,6 @@ protected:
 	bool	agcEnabled;
 };
 
-#if 0
-class ReaderContext
-{
-public:
-	typedef std::tuple<uint8_t*, size_t> RawBuffer;
-
-	size_t roundup(size_t r)
-	{
-		return r / packet_size * packet_size;
-	}
-	void reset()
-	{
-		peak_value = 0;
-		lost = 0;
-		total = 0;
-		rdPtr = 0;
-		wrPtr = 0;
-		count = 0;
-		buffer.clear();
-		buffer.resize( roundup(32*1024*1024) );
-	}
-
-	RawBuffer getFirstFree()
-	{
-		std::lock_guard<std::mutex> lg(data_guard);
-
-		if(count + num_packets*packet_size > buffer.size())
-		{
-			lost += packet_size;
-			printf("getFirstFree: overflow\n");
-			return RawBuffer(NULL, 0);
-		}
-
-		//printf("getFirstFree: %p, %ld\n", &buffer.data()[wrPtr], std::min(buffer.size()-count, num_packets*packet_size));
-
-		return RawBuffer(&buffer.data()[wrPtr], std::min(buffer.size()-count, num_packets*packet_size));
-	}
-
-	void commitPacket(const RawBuffer &buf)
-	{
-		std::lock_guard<std::mutex> lg(data_guard);
-
-		if(std::get<0>(buf) != &buffer.data()[wrPtr])
-		{
-			printf("commitPacket: err 1 %p, %ld\n", std::get<0>(buf), std::get<1>(buf));
-
-			return;
-		}
-
-		if(count + std::get<1>(buf) > buffer.size())
-		{
-			printf("commitPacket: err 2 %p, %ld\n", std::get<0>(buf), std::get<1>(buf));
-
-			return;
-		}
-
-
-		wrPtr += std::get<1>(buf);
-		wrPtr %= buffer.size();
-		count += std::get<1>(buf);
-		total += std::get<1>(buf);
-
-		//printf("count=%ld size=%ld rdPtr=%ld wrPtr=%ld\n", count, buffer.size(), rdPtr, wrPtr);
-		//printf("commitPacket: %p, %ld\n", std::get<0>(buf), std::get<1>(buf));
-
-		dataAvailNotifier.notify_one();
-	}
-
-	RawBuffer getAvailData(size_t maxsize)
-	{
-		std::unique_lock<std::mutex> lock(data_guard);
-
-		if(!count)
-		{
-			dataAvailNotifier.wait_for(lock, std::chrono::milliseconds(timeoutMs), [this]{return count != 0;});
-		}
-
-		//printf("count=%ld size=%ld rdPtr=%ld\n", count, buffer.size(), rdPtr);
-		maxsize = std::min(maxsize, count);
-		maxsize = std::min(maxsize, buffer.size()-rdPtr);
-
-		//printf("getAvailData: %p, %ld\n", &buffer.data()[rdPtr], maxsize);
-
-		return RawBuffer(&buffer.data()[rdPtr], maxsize);
-	}
-
-	void free(const RawBuffer &buf)
-	{
-		std::lock_guard<std::mutex> lg(data_guard);
-
-		if( std::get<0>(buf) == &buffer.data()[rdPtr] && std::get<1>(buf) <= count )
-		{
-			//printf("free: %p, %ld\n", std::get<0>(buf), std::get<1>(buf));
-
-			rdPtr += std::get<1>(buf);
-			rdPtr %= buffer.size();
-			count -= std::get<1>(buf);
-		}
-		else
-		{
-			printf("free: err %p, %ld\n", std::get<0>(buf), std::get<1>(buf));
-		}
-	}
-
-	std::mutex				data_guard;
-    std::condition_variable	dataAvailNotifier;
-	size_t					rdPtr;
-	size_t					wrPtr;
-	size_t					count;
-
-	std::vector<uint8_t>	buffer;
-	size_t					total;
-	size_t					lost;
-	uint16_t				peak_value;
-};
-#endif
 class LowLevel
 {
 public:
@@ -470,17 +350,6 @@ public:
 	void DumpReaderStats();
 	RingBuf& getRingBuffer() { return ringBuffer; }
 
-#if 0
-	ReaderContext::RawBuffer getAvailData(size_t maxsize)
-	{
-		return ReaderContextData.getAvailData(maxsize);
-	}
-
-	void freeData(ReaderContext::RawBuffer &buf)
-	{
-		ReaderContextData.free(buf);
-	}
-#endif
 	template <class T>
 	int WriteToFile( T writeData )
 	{
@@ -511,7 +380,6 @@ protected:
 
 	int SendFW(unsigned char *firmware, uint32_t address, int32_t len);
 	int SendI2cbyte(uint32_t address, uint8_t reg, uint8_t value);
-	//int SendI2cbytes(uint32_t address, uint8_t *values, size_t len);
 	int SendI2cbytes(uint32_t address, uint8_t reg, const uint8_t *values, size_t len);
 	int RecvI2cbytes(uint32_t address, uint8_t reg, uint8_t *values, size_t len);
 	void GpioWrite(uint8_t gpio);
@@ -539,13 +407,6 @@ protected:
 	int rtlsdr_i2c_write_fn(void *dev, uint8_t addr, uint8_t *buf, int len);
 	int rtlsdr_i2c_read_fn(void *dev, uint8_t addr, uint8_t *buf, int len);
 
-//clk handling
-void Si5351init();
-void si5351aSetFrequency(UINT32 freq, UINT32 freq2);
-void si5351aOutputOff(UINT8 clk);
-void setupMultisynth( UINT8 synth, UINT32 divider, UINT8 rDiv);
-void setupPLL(UINT8 pll, UINT8 mult, UINT32 num, UINT32 denom);
-
 	//Internal Reader stuff
 	void ReadThread();
 
@@ -559,7 +420,7 @@ void setupPLL(UINT8 pll, UINT8 mult, UINT32 num, UINT32 denom);
 	uint16_t	adcPeakLevel;
 	bool StopReader;
 	std::thread ReadThreadHandle;
-	//ReaderContext	ReaderContextData;
+	
 	RingBuf			ringBuffer;
 	boost::posix_time::ptime	missionStart;
 	uint16_t	avgValue;

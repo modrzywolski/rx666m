@@ -202,7 +202,7 @@ int main(int ac, char *av[])
 	if ( vm["spectrum"].as< bool >() )
 		printf("\033[2J\n");
 
-	if ( !vm["spectrum"].as< bool >()) // && !vm["stdout"].as< bool >() )
+	if ( !vm["spectrum"].as< bool >() )
 		dumper.show();
 
 	while(!stopApp)
@@ -215,8 +215,6 @@ int main(int ac, char *av[])
 			driver.WriteToFile( std::bind(&GzFileWriter::writeData, &gzfw, _1) );
 		else
 			driver.WriteToFile( std::bind(&FileWriter::writeData, &fw, _1) );
-
-		//std::this_thread::sleep_for(std::chrono::milliseconds(100 + rand()%100));
 	}
 
 	std::this_thread::sleep_for(std::chrono::milliseconds(100 + rand()%100));

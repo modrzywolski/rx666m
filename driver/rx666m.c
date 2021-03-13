@@ -1,6 +1,6 @@
 /*
  * rx666m USB driver
- * Copyright (C) 2020 Marcin Odrzywolski
+ * Copyright (C) 2020 Marcin Odrzywolski <emk6@wp.pl>
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -33,13 +33,13 @@
 #include <linux/kernel.h>
 #include <linux/time.h>
 
-#include "../common/rx666m_ioctl.h"
+#include "rx666m_ioctl.h"
 
 #define USB_CYPRESS_VENDOR_ID   				0x04b4
 #define USB_FX3_PRODUCT_ID      				0x00f3
 #define USB_RX666M_MINOR_BASE					193
 #define NUM_CONCURRENT_TRANSFERS  				32
-#define NUM_DATA_URB							NUM_CONCURRENT_TRANSFERS*1024*16
+#define NUM_DATA_URB							NUM_CONCURRENT_TRANSFERS*16
 #define DATA_BUFFER_SIZE						(1024*4)
 #define USB_TYPE_OUT							0x40
 #define USB_TYPE_IN								0xC0
@@ -1044,7 +1044,7 @@ long rx666m_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 			break;
     }
 
-	dev_info(&dev->interface->dev, "ioctl end: %d retval=%d\n", (int)cmd, (int)retval);
+	dev_info(&dev->interface->dev, "ioctl end: %x retval=%d\n", (int)cmd, (int)retval);
 
     return retval;
 }
@@ -1084,7 +1084,7 @@ static int rx666m_release(struct inode *inode, struct file *file)
 {
     rx666m_device_t *dev;
 
-	printk("release\n");
+	printk("rx666m release\n");
 
     dev = (rx666m_device_t *)file->private_data;
 
@@ -1097,7 +1097,7 @@ static int rx666m_release(struct inode *inode, struct file *file)
         dev->reader = NULL;
     }
 
-	printk("released");
+	printk("rx666m released");
 
     return 0;
 }

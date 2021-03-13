@@ -1,7 +1,6 @@
 obj-m = rx666m.o
-MY_CFLAGS += -g 
-ccflags-y += ${MY_CFLAGS}
-CC += ${MY_CFLAGS}
+#EXTRA_CFLAGS = -Wall -g -I$(PWD)/../common/
+ccflags-y += -g -I$(PWD)/../common/
 
 KVERSION = $(shell uname -r)
 all:

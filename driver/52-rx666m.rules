@@ -1,0 +1,9 @@
+ACTION=="add" ATTR{idVendor}=="04b4", ATTR{idProduct}=="00f1", SUBSYSTEM=="usb", ATTR{bConfigurationValue}="1", MODE="0666"
+#, GROUP="plugdev"
+ATTR{idVendor}=="04b4", ATTR{idProduct}=="00f3", SUBSYSTEM=="usb", MODE="0666"
+#, GROUP="plugdev"
+ACTION=="bind" ATTR{idVendor}=="04b4", ATTR{idProduct}=="00f1", SUBSYSTEM=="usb", MODE="0666"
+#, GROUP="plugdev"
+
+
+

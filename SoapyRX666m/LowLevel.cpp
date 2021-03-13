@@ -1,3 +1,22 @@
+/*
+ * SoapySDR RX666m driver
+ * Copyright (C) 2020 Marcin Odrzywolski <emk6@wp.pl>
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation; either version 2
+ * of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, write to the Free Software Foundation, Inc.,
+ * 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -34,7 +53,7 @@
 #define IS_BIG_ENDIAN (*(uint16_t *)"\0\xff" < 0x100)
 
 static const char devName[] = "/dev/rx666m";
-static const char imagePath[]= "/home/emk/workspace/rx666m/RX666.img";
+static const char imagePath[]= "/usr/share/rx666m/RX666.img";
 
 /* Array representing physical size of EEPROM corresponding to each size encoding. */
 const int i2c_eeprom_size[] =
@@ -182,7 +201,7 @@ void LowLevel::Init()
 		std::cerr << "load fw\n";
 		LoadFirmware();
 		std::cerr << "start fw\n";
-		sleep(1);
+		sleep(3);
 		std::cerr << "reopen dev\n";
 		CloseDev();
 		OpenDev();

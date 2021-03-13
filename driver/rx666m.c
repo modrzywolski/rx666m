@@ -50,7 +50,7 @@
 #define ANCHORURB	1
 #define DMA_EN		1
 #define LOG_PERIOD 	(5*HZ)
-#define LOG_EN		1
+#define LOG_EN		0
 
 typedef struct
 {
@@ -128,7 +128,6 @@ typedef struct rx666m_device_s
 }rx666m_device_t;
 
 
-static void dump_info(rx666m_device_t *dev);
 static void rx666m_read_cb(struct urb *urb);
 
 
@@ -148,6 +147,8 @@ MODULE_DEVICE_TABLE(usb, rx666m_table);
 
 
 #if LOG_EN
+static void dump_info(rx666m_device_t *dev);
+
 void stats_dumper_work(struct work_struct * work_struct_ptr)
 {
     struct delayed_work * delayed = container_of(work_struct_ptr, struct delayed_work, work);

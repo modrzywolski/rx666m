@@ -135,18 +135,11 @@ void SoapyRX666m::convertSamples( void *out_buff, void *in_buff, size_t st, size
 	{
 		if(0)
 		{
-			//ftarget[st + i * 2] = nco2()/2 + nco3()/2;
-			ftarget[(st + i) * 2] = 0.444; //nco4()/2;
-			ftarget[(st + i) * 2 + 1] = 0.0;
-		}
-		else if(0)
-		{
-			ftarget[(st + i) * 2] = float(rand()%65536lu)/65536lu;
+			ftarget[st + i * 2] = nco2()/2 + nco3()/2;
 			ftarget[(st + i) * 2 + 1] = 0.0;
 		}
 		else
 		{
-			//ftarget[st + i * 2] = swapByteOrder(ptr[i]);
 			ftarget[(st + i) * 2] = float(ptr[i])/65536lu;
 			ftarget[(st + i) * 2 + 1] = 0.0;
 		}

@@ -1,7 +1,7 @@
 ## RX666m support under GQRX ##
 
 This repository contains the source code enabling RX-666 and RX-666m support under GQRX.
-RX-666m is a modified version of RX-666, I added variable gain LNA in front of HF patch (AD8331).
+RX-666m is a modified version of RX-666, I added variable gain LNA in front of HF path (AD8331).
 The driver treats AD8331 as optional and can cope without one.
 
 The driver can be easily modified to support any other FX3 based SDR, like RX-888 RX-888 mkII.

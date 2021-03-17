@@ -89,6 +89,7 @@ int main(int ac, char *av[])
 	signal(SIGTERM, exitHandler); 
 
 	driver.Init();
+	driver.getRingBuffer().resize( 2048 ); //set bigger buffer
 
 
 	driver.SetAD8331Gain( vm["vga_gain"].as< double >() );

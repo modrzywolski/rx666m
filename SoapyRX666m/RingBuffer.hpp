@@ -28,7 +28,7 @@
 #include <boost/format.hpp>
 
 constexpr size_t	ring_chunk_size	= 4096*128;
-constexpr size_t	ring_total_entries = 512;
+constexpr size_t	ring_total_entries = 64;
 
 class RingBufEntry
 {
@@ -44,7 +44,13 @@ public:
 	RingBuf()
 	{
 		reset();
-		alloc();
+		alloc( ring_total_entries );
+	}
+
+	void resize( size_t size )
+	{
+		reset();
+		alloc( size );
 	}
 
 	void reset()
@@ -130,10 +136,10 @@ public:
 	size_t statsCount() { return count; }
 protected:
 
-	void alloc()
+	void alloc( size_t size )
 	{
-		ring.reserve(ring_total_entries);
-		ring.resize(ring_total_entries);
+		ring.reserve( size );
+		ring.resize( size );
 
 		std::generate(ring.begin(), ring.end(), []() { return new RingBufEntry; } );
 	}

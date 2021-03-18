@@ -134,6 +134,7 @@ public:
 	size_t statsTotal() { return total; }
 	size_t statsLost() { return lost; }
 	size_t statsCount() { return count; }
+	size_t statsSize() { return ring.size(); }
 protected:
 
 	void alloc( size_t size )

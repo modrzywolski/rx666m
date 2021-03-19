@@ -1,4 +1,4 @@
-## RX666m support under GQRX ##
+## RX666m support under GQRX/Linux ##
 
 This repository contains the source code enabling RX-666 and RX-666m support under GQRX/Linux.
 RX-666m is a modified version of RX-666, I added variable gain LNA in front of HF path (AD8331).

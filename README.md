@@ -24,6 +24,7 @@ SoapySDR Interface Library Installation
 Recoding raw samples
 
 ```rx666m_util --vga_gain 7 --attn -10 --out rx.raw```
+
 ```rx666m_util --vga_gain 7 --attn -10 --stdout | zstd --fast > rx.raw.zstd #with realtime compression```
 
 Playing raw samples in gqrx

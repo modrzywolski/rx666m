@@ -23,6 +23,12 @@
 #define MCP4725_ADDR					(0x61 << 1)
 #define R820T2_ADDR      				(0x34)
 
+#define PCA9557_ADDR (0x19) ///< Default i2c address
+#define PCA9557_CMD_INPUT       (0x00)
+#define PCA9557_CMD_OUTPUT      (0x01)
+#define PCA9557_CMD_POLARITY    (0x02)
+#define PCA9557_CMD_CONFIG      (0x03)
+
 #define MYDRBASE 'k'
 #define RX666M_IS_BOOTLOADER_RUNNING	_IO(  MYDRBASE, 1)
 #define RX666M_WRITE_RAM 				_IO(  MYDRBASE, 2)

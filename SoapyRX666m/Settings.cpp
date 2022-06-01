@@ -31,7 +31,8 @@ SoapyRX666m::SoapyRX666m(const SoapySDR::Kwargs &args):
     centerFrequency(0),
     ppm(0),
     ticks(false),
-	HFAttn(0.0),
+	HFAttn1(0.0),
+	HFAttn2(0.0),
 	HFGain(0.0),
 	UHFGain(0.0),
 	AGCEnabled(false)
@@ -141,7 +142,8 @@ std::vector<std::string> SoapyRX666m::listGains(const int direction, const size_
     std::vector<std::string> results;
 
 	results.push_back("HFVGA");
-	results.push_back("HFATTN");
+	results.push_back("HFATTN1");
+	results.push_back("HFATTN2");
 	results.push_back("UHFVGA");
 
     return results;
@@ -177,11 +179,17 @@ void SoapyRX666m::setGain(const int direction, const size_t channel, const std::
 			UHFGain = value;
 			driver.SetDCGain(UHFGain);
 		}
-		else if(name == "HFATTN")
+		else if(name == "HFATTN1")
 		{
-			HFAttn = value;
-			driver.SetAttn(HFAttn);
+			HFAttn1 = value;
+			driver.SetAttn1(HFAttn1);
 		}
+		else if(name == "HFATTN2")
+		{
+			HFAttn2 = value;
+			driver.SetAttn2(HFAttn2);
+		}
+
 	}
 }
 
@@ -195,9 +203,13 @@ double SoapyRX666m::getGain(const int direction, const size_t channel, const std
 	{
 		return UHFGain;
 	}
-	else if(name == "HFATTN")
+	else if(name == "HFATTN1")
 	{
-		return HFAttn;
+		return HFAttn1;
+	}
+	else if(name == "HFATTN2")
+	{
+		return HFAttn2;
 	}
 
     return 0;
@@ -209,7 +221,11 @@ SoapySDR::Range SoapyRX666m::getGainRange(const int direction, const size_t chan
 	{
 		return SoapySDR::Range(-3, 45);
 	}
-	else if(name == "HFATTN")
+	else if(name == "HFATTN1")
+	{
+		return SoapySDR::Range(-31, 0);
+    }
+	else if(name == "HFATTN2")
 	{
 		return SoapySDR::Range(-20, 0);
     }

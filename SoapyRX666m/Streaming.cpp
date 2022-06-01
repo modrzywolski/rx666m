@@ -113,7 +113,8 @@ int SoapyRX666m::activateStream( SoapySDR::Stream *stream, const int flags, cons
 	driver.ActivateReader();
 	driver.SetAD8331Gain(HFGain);
 	driver.SetDCGain(UHFGain);
-	driver.SetAttn(HFAttn);
+	driver.SetAttn2(HFAttn1);
+	driver.SetAttn1(HFAttn2);
 	driver.SetDCFreq(centerFrequency);
 
     return 0;

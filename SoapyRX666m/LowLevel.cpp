@@ -212,13 +212,42 @@ void LowLevel::Init()
 	GpioWrite( GPIO_DEFAULT );
 	SetMode();
 
-	isVGAPresent();
+	if( isVGAPresent() )
+	{
+		InitPca9557();
+	}
+
 	if( isDCPresent() )
 	{
 		std::cerr << "Initailizing R820T2\n";
 		r82xx_init(&tuner_data);
 		r82xx_set_freq(&tuner_data, 102000000);
 	}
+}
+
+void LowLevel::InitPca9557()
+{
+	rx666m_ioctl_i2c_transfer_t i2c_trans;
+	int r;
+
+	memset(&i2c_trans, 0, sizeof(i2c_trans));
+	i2c_trans.address = PCA9557_ADDR;
+	i2c_trans.reg  = PCA9557_CMD_CONFIG;
+	i2c_trans.len = 1;
+	i2c_trans.data[0]=0x00; //all pin are outputs
+	r=ioctl(devHandle, RX666M_I2C_WRITE, &i2c_trans);
+	if(r)
+		fprintf(stderr,"RX666M_I2C_WRITE Error r=%d\n", r);
+
+
+	memset(&i2c_trans, 0, sizeof(i2c_trans));
+	i2c_trans.address = PCA9557_ADDR;
+	i2c_trans.reg  = PCA9557_CMD_POLARITY;
+	i2c_trans.len = 1;
+	i2c_trans.data[0]=0x00; //no inversion
+	r=ioctl(devHandle, RX666M_I2C_WRITE, &i2c_trans);
+	if(r)
+		fprintf(stderr,"RX666M_I2C_WRITE Error r=%d\n", r);
 }
 
 void LowLevel::SetMode()
@@ -287,22 +316,23 @@ void LowLevel::SetAD8331Gain(double gain)
 
 void LowLevel::SetHFGainDistribute(double gain)
 {
-	if( gain <= ATTN2_Gain )
+	if( gain <= ATTN2_Gain2 )
 	{
 		//std::cerr << "ATTN -20dB" << std::endl;
-		SetAttn(ATTN2_Gain);
-		gain -= ATTN2_Gain;
+		SetAttn2(ATTN2_Gain2);
+		gain -= ATTN2_Gain2;
 	}
 	else if( gain < AD8331_MinGain )
 	{
 		//std::cerr << "ATTN -10dB" << std::endl;
-		SetAttn(ATTN1_Gain);
-		gain -= ATTN1_Gain;
+		SetAttn2(ATTN2_Gain1);
+		gain -= ATTN2_Gain1;
 	}
 	else
 	{
 		//std::cerr << "ATTN 0dB" << std::endl;
-		SetAttn(0);
+		SetAttn2(0);
+		SetAttn1(0);
 	}
 
 	SetAD8331Gain(gain);
@@ -328,13 +358,13 @@ void LowLevel::SetDCFreq(uint32_t freq)
 	}
 }
 
-void LowLevel::SetAttn(double gain)
+void LowLevel::SetAttn1(double gain)
 {
 
 	if(gain >= 0.0)
 		gain = 0.0;
-	else if (gain < ATTN2_Gain)
-		gain = ATTN2_Gain;
+	else if (gain < ATTN2_Gain2)
+		gain = ATTN2_Gain2;
 
 	int32_t igain = ceil(gain / 10.0);
 
@@ -356,6 +386,49 @@ void LowLevel::SetAttn(double gain)
 		}
 
 		GpioWrite( gpio );
+	}
+}
+
+
+void LowLevel::SetAttn2(double gain)
+{
+
+	if(gain >= 0.0)
+		gain = 0.0;
+	else if (gain < ATTN2_Gain2)
+		gain = ATTN2_Gain2;
+
+	int32_t att = ceil(gain);
+
+	fprintf(stderr,"gain=%d\n", (int)att);
+
+	if(isRunning() && !DCEnabled)
+	{
+		uint8_t reg = 0;
+
+		if(att > 31)
+		  att = 31;
+
+		if(att&16) reg|= 1<<7;
+		if(att&8) reg|= 1<<2;
+		if(att&4) reg|= 1<<3;
+		if(att&4) reg|= 1<<3;
+		if(att&2) reg|= 1<<4;
+		if(att&1) reg|= 1<<5;
+
+		rx666m_ioctl_i2c_transfer_t i2c_trans;
+		int r;
+
+		memset(&i2c_trans, 0, sizeof(i2c_trans));
+		i2c_trans.address = PCA9557_ADDR;
+		i2c_trans.reg  = PCA9557_CMD_OUTPUT;
+		i2c_trans.len = 1;
+		i2c_trans.data[0]=reg;
+		r=ioctl(devHandle, RX666M_I2C_WRITE, &i2c_trans);
+		if(r)
+			fprintf(stderr,"RX666M_I2C_WRITE Error r=%d\n", r);
+		else
+			fprintf(stderr, "attn1 ok\n");
 	}
 }
 

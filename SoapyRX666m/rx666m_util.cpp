@@ -61,13 +61,22 @@ int main(int ac, char *av[])
 					throw po::invalid_option_value( std::to_string(g) );
             }),
 			(boost::format("VGA gain, %1%..%2% dB") % AD8331_MinGain % AD8331_MaxGain ).str().c_str() )
-		("attn", po::value<double>()->default_value(0)->notifier(
+#if 1
+		("attn1", po::value<double>()->default_value(0)->notifier(
             [](double g)
             {
-                if (!is_close(g, ATTN2_Gain) && !is_close(g, ATTN1_Gain) && !is_close(g, 0.0) )
+				if (g < ATTN1_Gain || g > 0.0 )
 					throw po::invalid_option_value( std::to_string(g) );
             }),
-			(boost::format("Attenuator level, valid levels: %1%, %2%, %3%") % ATTN2_Gain % ATTN1_Gain % 0.0 ).str().c_str() )
+			(boost::format("Attenuator level, %1%..%2% dB") % 0.0 % ATTN1_Gain ).str().c_str() )
+#endif
+		("attn2", po::value<double>()->default_value(0)->notifier(
+            [](double g)
+            {
+                if (!is_close(g, ATTN2_Gain2) && !is_close(g, ATTN2_Gain1) && !is_close(g, 0.0) )
+					throw po::invalid_option_value( std::to_string(g) );
+            }),
+			(boost::format("Attenuator level, valid levels: %1%, %2%, %3%") % ATTN2_Gain2 % ATTN2_Gain1 % 0.0 ).str().c_str() )
 		("agc", po::bool_switch(), "Enable software AGC")
 		("out",	po::value<std::string>(), "Output file for samples recording")
 		("stdout",	po::bool_switch(), "Output samples to standard output")
@@ -93,7 +102,8 @@ int main(int ac, char *av[])
 
 
 	driver.SetAD8331Gain( vm["vga_gain"].as< double >() );
-	driver.SetAttn( vm["attn"].as< double >() );
+	driver.SetAttn1( vm["attn1"].as< double >() );
+	driver.SetAttn2( vm["attn2"].as< double >() );
 	driver.SetAGC( vm["agc"].as< bool >() );
 
 	FileWriter fw;

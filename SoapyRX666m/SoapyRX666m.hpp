@@ -223,7 +223,8 @@ private:
     std::atomic<long long> ticks;
 
 public:
-	double HFAttn;
+	double HFAttn1;
+	double HFAttn2;
 	double HFGain;
 	double UHFGain;
 	bool   AGCEnabled;

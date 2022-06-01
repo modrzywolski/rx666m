@@ -59,13 +59,11 @@ public:
 	~LowLevel();
 
 	//Init interface
-	void Init();
+	int Init();
 
 	//Control Interface
-	void SetHFGain(uint16_t gain);
-	void SetHFGainDistribute(double gain);
 	void SetAD8331Gain(double gain);
-	uint16_t GetHFGain();
+	void SetHFGainDistribute(double gain);
 	void SetAttn1(double gain);
 	void SetAttn2(double gain);
 	void SetDCGain(uint16_t gain);
@@ -74,6 +72,7 @@ public:
 	int Read(void *buffer, size_t cnt);
 
 	bool isVGAPresent();
+	bool isATTNPresent();
 	bool isDCPresent();
 	bool isRunning();
 	void SetMode();
@@ -106,22 +105,22 @@ public:
 
 protected:
 
-	void OpenDev();
+	int OpenDev();
 	void CloseDev();
-	void LoadFirmware();
+	int LoadFirmware();
 	bool IsBootloaderRunning();
 
 	int FX3Download(const char *imagefile);
 	int FX3ReadImage( const char *filename, unsigned char *buf, int *romsize, int *filesize);
-	void FX3Start();
+	int FX3Start();
 
 	int SendFW(unsigned char *firmware, uint32_t address, int32_t len);
 	int SendI2cbyte(uint32_t address, uint8_t reg, uint8_t value);
 	int SendI2cbytes(uint32_t address, uint8_t reg, const uint8_t *values, size_t len);
 	int RecvI2cbytes(uint32_t address, uint8_t reg, uint8_t *values, size_t len);
 	void GpioWrite(uint8_t gpio);
-	void InitClk();
-	void InitPca9557();
+	int InitClk();
+	int InitPca9557();
 
 	//tuner handling
 	void shadow_store(struct r82xx_priv *priv, uint8_t reg, const uint8_t *val, int len);
@@ -151,6 +150,7 @@ protected:
 	//atributes
 	int	devHandle;
 	int VGAPresent;
+	int ATTNPresent;
 	int DCPresent;
 	bool DCEnabled;
 	r82xx_priv tuner_data;

@@ -178,7 +178,7 @@ si5351a_revb_register_t regs[] =
 
 };
 
-LowLevel::LowLevel() : devHandle(-1), VGAPresent(-1), DCPresent(-1),DCEnabled(false)
+LowLevel::LowLevel() : devHandle(-1), VGAPresent(-1), ATTNPresent(-1), DCPresent(-1),DCEnabled(false)
 {
 	memset(&tuner_data, 0, sizeof(tuner_data));
 }
@@ -188,31 +188,51 @@ LowLevel::~LowLevel()
 	CloseDev();
 }
 
-void LowLevel::Init()
+int LowLevel::Init()
 {
+	int r;
+
 	std::cerr << "Open dev\n";
-	OpenDev();
+	r=OpenDev();
+	if(r<0)
+		return r;
 	std::cerr << "Opened\n";
 
 	if(IsBootloaderRunning())
 	{
 		std::cerr << "Load firmware\n";
-		LoadFirmware();
+		r=LoadFirmware();
+		if(r<0)
+			return r;
+
 		std::cerr << "Start firmware\n";
 		sleep(1);
 		std::cerr << "Reopen dev\n";
 		CloseDev();
-		OpenDev();
-		FX3Start();
+		r=OpenDev();
+		if(r<0)
+			return r;
+
+		r=FX3Start();
+		if(r<0)
+			return r;
+
 	}
 
 	std::cerr << "Init clk\n";
-	InitClk();
+	r=InitClk();
+	if(r<0)
+		return r;
 
 	GpioWrite( GPIO_DEFAULT );
 	SetMode();
 
 	if( isVGAPresent() )
+	{
+		SetAD8331Gain( 0.0 );
+	}
+
+	if( isATTNPresent() )
 	{
 		InitPca9557();
 	}
@@ -223,19 +243,21 @@ void LowLevel::Init()
 		r82xx_init(&tuner_data);
 		r82xx_set_freq(&tuner_data, 102000000);
 	}
+
+	return 0;
 }
 
-void LowLevel::InitPca9557()
+int LowLevel::InitPca9557()
 {
 	rx666m_ioctl_i2c_transfer_t i2c_trans;
-	int r;
+	int r=0;
 
 	memset(&i2c_trans, 0, sizeof(i2c_trans));
 	i2c_trans.address = PCA9557_ADDR;
 	i2c_trans.reg  = PCA9557_CMD_CONFIG;
 	i2c_trans.len = 1;
 	i2c_trans.data[0]=0x00; //all pin are outputs
-	r=ioctl(devHandle, RX666M_I2C_WRITE, &i2c_trans);
+	r|=ioctl(devHandle, RX666M_I2C_WRITE, &i2c_trans);
 	if(r)
 		fprintf(stderr,"RX666M_I2C_WRITE Error r=%d\n", r);
 
@@ -245,9 +267,11 @@ void LowLevel::InitPca9557()
 	i2c_trans.reg  = PCA9557_CMD_POLARITY;
 	i2c_trans.len = 1;
 	i2c_trans.data[0]=0x00; //no inversion
-	r=ioctl(devHandle, RX666M_I2C_WRITE, &i2c_trans);
+	r|=ioctl(devHandle, RX666M_I2C_WRITE, &i2c_trans);
 	if(r)
 		fprintf(stderr,"RX666M_I2C_WRITE Error r=%d\n", r);
+
+	return r;
 }
 
 void LowLevel::SetMode()
@@ -264,24 +288,6 @@ bool LowLevel::isRunning()
 	return (devHandle>0);
 }
 
-void LowLevel::SetHFGain(uint16_t gain)
-{
-	if(devHandle < 0)
-		return;
-
-	rx666m_ioctl_i2c_transfer_t i2c_trans;
-	int r;
-
-	memset(&i2c_trans, 0, sizeof(i2c_trans));
-	i2c_trans.address = MCP4725_ADDR;
-	i2c_trans.reg  = (gain >> 8) & 0x0f;
-	i2c_trans.len = 1;
-	i2c_trans.data[0]=gain & 0xff;
-	r=ioctl(devHandle, RX666M_I2C_WRITE, &i2c_trans);
-	if(r)
-		fprintf(stderr,"RX666M_I2C_WRITE, Error r=%d\n", r);
-}
-
 void LowLevel::SetAD8331Gain(double gain)
 {
 	uint32_t igain;
@@ -293,13 +299,10 @@ void LowLevel::SetAD8331Gain(double gain)
 	if(gain > AD8331_MaxGain)
 		gain = AD8331_MaxGain;
 
-	//std::cerr << "AD8331 " << gain << " dB" << std::endl;
-
 	gain -= AD8331_MinGain;
 
 
 	igain = static_cast<double>(0xfff) * gain / (AD8331_MaxGain - AD8331_MinGain);
-	//std::cerr << "AD8331 0x" << std::hex << igain << ", " << gain << std::endl;
 
 	rx666m_ioctl_i2c_transfer_t i2c_trans;
 	int r;
@@ -358,7 +361,7 @@ void LowLevel::SetDCFreq(uint32_t freq)
 	}
 }
 
-void LowLevel::SetAttn1(double gain)
+void LowLevel::SetAttn2(double gain)
 {
 
 	if(gain >= 0.0)
@@ -367,8 +370,6 @@ void LowLevel::SetAttn1(double gain)
 		gain = ATTN2_Gain2;
 
 	int32_t igain = ceil(gain / 10.0);
-
-	//fprintf(stderr,"gain=%d\n", (int)igain);
 
 	if(isRunning() && !DCEnabled)
 	{
@@ -389,18 +390,15 @@ void LowLevel::SetAttn1(double gain)
 	}
 }
 
-
-void LowLevel::SetAttn2(double gain)
+void LowLevel::SetAttn1(double gain)
 {
 
 	if(gain >= 0.0)
 		gain = 0.0;
-	else if (gain < ATTN2_Gain2)
-		gain = ATTN2_Gain2;
+	else if (gain < ATTN1_Gain)
+		gain = ATTN1_Gain;
 
-	int32_t att = ceil(gain);
-
-	fprintf(stderr,"gain=%d\n", (int)att);
+	int32_t att = ceil(-gain);
 
 	if(isRunning() && !DCEnabled)
 	{
@@ -411,7 +409,6 @@ void LowLevel::SetAttn2(double gain)
 
 		if(att&16) reg|= 1<<7;
 		if(att&8) reg|= 1<<2;
-		if(att&4) reg|= 1<<3;
 		if(att&4) reg|= 1<<3;
 		if(att&2) reg|= 1<<4;
 		if(att&1) reg|= 1<<5;
@@ -426,9 +423,7 @@ void LowLevel::SetAttn2(double gain)
 		i2c_trans.data[0]=reg;
 		r=ioctl(devHandle, RX666M_I2C_WRITE, &i2c_trans);
 		if(r)
-			fprintf(stderr,"RX666M_I2C_WRITE Error r=%d\n", r);
-		else
-			fprintf(stderr, "attn1 ok\n");
+			fprintf(stderr,"RX666M_I2C_WRITE, Error r=%d\n", r);
 	}
 }
 
@@ -437,32 +432,6 @@ void LowLevel::SetAGC(bool on)
 #if AGC
 	peakDetector.SetAGC(on);
 #endif
-}
-
-uint16_t LowLevel::GetHFGain()
-{
-	if(devHandle < 0)
-		return 0;
-
-	rx666m_ioctl_i2c_transfer_t i2c_trans;
-	int r;
-
-	i2c_trans.address = MCP4725_ADDR;
-	i2c_trans.reg  = 0;
-	i2c_trans.len = 3;
-
-	r=ioctl(devHandle, RX666M_I2C_READ, &i2c_trans);
-	if(r)
-		fprintf(stderr,"RX666M_I2C_READ Error r=%d\n", r);
-	//fprintf(stderr,"data[0]=%x\n", (uint32_t)i2c_trans.data[0]);
-	//fprintf(stderr,"data[1]=%x\n", (uint32_t)i2c_trans.data[1]);
-	//printf("data[2]=%x\n", (uint32_t)i2c_trans.data[2]);
-
-	uint16_t dac;
-	dac = ((uint16_t)i2c_trans.data[1] << 4);
-	dac |= i2c_trans.data[2]>>4;
-
-	return dac;
 }
 
 int LowLevel::Read(void *buffer, size_t cnt)
@@ -516,7 +485,7 @@ int LowLevel::Read(void *buffer, size_t cnt)
 	return r;
 }
 
-void LowLevel::OpenDev()
+int LowLevel::OpenDev()
 {
 
 	if(devHandle == -1)
@@ -525,8 +494,11 @@ void LowLevel::OpenDev()
 		if (devHandle < 0)
 		{
 			fprintf(stderr, "Can't open device: %s\n", devName);
+			return devHandle;
 		}
   	}
+
+	return 0;
 }
 
 void LowLevel::CloseDev()
@@ -538,10 +510,10 @@ void LowLevel::CloseDev()
 	}
 }
 
-void LowLevel::LoadFirmware()
+int LowLevel::LoadFirmware()
 {
 	if(devHandle < 0)
-		return;
+		return -1;
 
 	if(IsBootloaderRunning())
 	{
@@ -550,9 +522,11 @@ void LowLevel::LoadFirmware()
 		if(FX3Download(imagePath))
 		{
 			std::cerr << "Can't read firmware: " << imagePath << "\n"; 
+			return -1;
 		}
 	}
 
+	return 0;
 }
 
 bool LowLevel::IsBootloaderRunning()
@@ -576,10 +550,10 @@ bool LowLevel::IsBootloaderRunning()
 	}
 }
 
-void LowLevel::FX3Start()
+int LowLevel::FX3Start()
 {
 	if(devHandle < 0)
-		return;
+		return -1;
 
 	int r;
 
@@ -589,6 +563,8 @@ void LowLevel::FX3Start()
 	{
 		fprintf(stderr, "FX3Start failed:%d\n", r);
 	}
+
+	return r;
 }
 
 
@@ -607,14 +583,6 @@ int LowLevel::SendI2cbyte(uint32_t address, uint8_t reg, uint8_t value)
 	i2c_trans.reg  = reg;
 	i2c_trans.len = 1;
 	i2c_trans.data[0]=value;
-
-#if 0
-	int i;
-    for(i=0;i<i2c_trans.len;i++)
-	{
-        fprintf(stderr, "reg[%03x] <- 0x%02x\n", reg+i, (int)i2c_trans.data[i]);
-	}
-#endif
 
 	r=ioctl(devHandle, RX666M_I2C_WRITE, &i2c_trans);
 	if(r)
@@ -638,14 +606,6 @@ int LowLevel::SendI2cbytes(uint32_t address, uint8_t reg, const uint8_t *values,
 	i2c_trans.reg  = reg;
 	i2c_trans.len = len;
 	memcpy(&i2c_trans.data, values, len);
-
-#if 0
-	int i;
-    for(i=0;i<i2c_trans.len;i++)
-	{
-        fprintf(stderr,"reg[%03x] <- 0x%02x\n", reg+i, (int)i2c_trans.data[i]);
-	}
-#endif
 
 	r=ioctl(devHandle, RX666M_I2C_WRITE, &i2c_trans);
 	if(r)
@@ -675,10 +635,6 @@ int LowLevel::RecvI2cbytes(uint32_t address, uint8_t reg, uint8_t *values, size_
 
 	memcpy(values, i2c_trans.data, i2c_trans.len);
 
-    //int i;
-	//for(i=0;i<i2c_trans.len;i++)
-	//	fprintf(stderr,"reg[%03d]=0x%02x\n", reg+i, (int)i2c_trans.data[i]);
-
 	return r;
 }
 
@@ -687,7 +643,6 @@ void LowLevel::GpioWrite(uint8_t gpio)
 	if(devHandle < 0)
 		return;
 
-//	fprintf(stderr,"GpioWrite %02x\n", (int)gpio);
 	int r;
 
 	r = ioctl(devHandle, RX666M_GPIO_WRITE, gpio);
@@ -709,7 +664,6 @@ int LowLevel::SendFW(unsigned char *firmware, uint32_t address, int32_t len)
 	cmd.address = address;
 	cmd.len = len;
 
-	//fprintf(stderr,"sending ioctl RX666M_WRITE_RAM address=%x, len=%x\n", address, len);
 	int r = ioctl(devHandle, RX666M_WRITE_RAM, &cmd);
 	if (r < 0)
 	{
@@ -846,34 +800,38 @@ int LowLevel::FX3Download(const char *imagefile)
         return 0;
 }
 
-void LowLevel::InitClk()
+int LowLevel::InitClk()
 {
+	int r = 0;
+
 	//Disable Outputs Set CLKx_DIS high; Reg. 3 = 0xFF
-	SendI2cbyte(SI5351_ADDR, 3, 0xff);
+	r |= SendI2cbyte(SI5351_ADDR, 3, 0xff);
 
 	//Powerdown all output drivers Reg. 16, 17, 18, 19, 20, 21, 22, 23 = 0x80
-	SendI2cbyte(SI5351_ADDR, 16, 0x80);
-	SendI2cbyte(SI5351_ADDR, 17, 0x80);
-	SendI2cbyte(SI5351_ADDR, 18, 0x80);
-	SendI2cbyte(SI5351_ADDR, 19, 0x80);
-	SendI2cbyte(SI5351_ADDR, 20, 0x80);
-	SendI2cbyte(SI5351_ADDR, 21, 0x80);
-	SendI2cbyte(SI5351_ADDR, 22, 0x80);
-	SendI2cbyte(SI5351_ADDR, 23, 0x80);
+	r |= SendI2cbyte(SI5351_ADDR, 16, 0x80);
+	r |= SendI2cbyte(SI5351_ADDR, 17, 0x80);
+	r |= SendI2cbyte(SI5351_ADDR, 18, 0x80);
+	r |= SendI2cbyte(SI5351_ADDR, 19, 0x80);
+	r |= SendI2cbyte(SI5351_ADDR, 20, 0x80);
+	r |= SendI2cbyte(SI5351_ADDR, 21, 0x80);
+	r |= SendI2cbyte(SI5351_ADDR, 22, 0x80);
+	r |= SendI2cbyte(SI5351_ADDR, 23, 0x80);
 
 	//Set interrupt masks(see register 2 description)
-	SendI2cbyte(SI5351_ADDR, 0x0002, 0x53);
+	r |= SendI2cbyte(SI5351_ADDR, 0x0002, 0x53);
 
 	int i, n=sizeof(regs)/sizeof(regs[0]);
 
 	for( i=0; i<n; i++)
-		SendI2cbyte(SI5351_ADDR, regs[i].address, regs[i].value);
+		r |= SendI2cbyte(SI5351_ADDR, regs[i].address, regs[i].value);
 
 	//Apply PLLA and PLLB soft resetReg. 177 = 0xAC
-	SendI2cbyte(SI5351_ADDR, 177, 0xAC);
+	r |= SendI2cbyte(SI5351_ADDR, 177, 0xAC);
 
 	//Enable desired outputs(see Register 3)
-	SendI2cbyte(SI5351_ADDR, 0x0003, 0x00);
+	r |= SendI2cbyte(SI5351_ADDR, 0x0003, 0x00);
+
+	return r;
 }
 
 
@@ -895,6 +853,33 @@ bool LowLevel::isVGAPresent()
 	fprintf(stderr,"VGA is %s\n", VGAPresent ? "present" : "absent");
 	return VGAPresent ? true : false;
 }
+
+/*bool LowLevel::isATTNPresent()
+{
+	if(!isRunning())
+		return false;
+
+	return (ATTNPresent == 1) ? true : false;
+}*/
+bool LowLevel::isATTNPresent()
+{
+	if(!isRunning())
+		return false;
+
+	if(ATTNPresent >= 0)
+		return ATTNPresent ? true : false;
+	
+	uint8_t values[1];
+
+	if( !RecvI2cbytes(PCA9557_ADDR, 0, values, sizeof(values)))
+		ATTNPresent = 1;
+	else
+		ATTNPresent = 0;
+
+	fprintf(stderr,"PE4302 is %s\n", ATTNPresent ? "present" : "absent");
+	return ATTNPresent ? true : false;
+}
+
 
 bool LowLevel::isDCPresent()
 {

@@ -23,7 +23,7 @@
 #define MCP4725_ADDR					(0x61 << 1)
 #define R820T2_ADDR      				(0x34)
 
-#define PCA9557_ADDR (0x19) ///< Default i2c address
+#define PCA9557_ADDR (0x19 << 1) ///< Default i2c address
 #define PCA9557_CMD_INPUT       (0x00)
 #define PCA9557_CMD_OUTPUT      (0x01)
 #define PCA9557_CMD_POLARITY    (0x02)

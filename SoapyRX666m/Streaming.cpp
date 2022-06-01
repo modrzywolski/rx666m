@@ -109,7 +109,9 @@ int SoapyRX666m::activateStream( SoapySDR::Stream *stream, const int flags, cons
     if (flags != 0)
 		return SOAPY_SDR_NOT_SUPPORTED;
 
-	driver.Init();
+	if(driver.Init())
+		return SOAPY_SDR_STREAM_ERROR;
+
 	driver.ActivateReader();
 	driver.SetAD8331Gain(HFGain);
 	driver.SetDCGain(UHFGain);

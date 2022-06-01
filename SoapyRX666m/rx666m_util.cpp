@@ -97,7 +97,12 @@ int main(int ac, char *av[])
 	signal(SIGINT, exitHandler);
 	signal(SIGTERM, exitHandler); 
 
-	driver.Init();
+	if(driver.Init())
+	{
+		std::cerr << "Cannot init RX666m\n";
+		return 1;
+	}
+
 	driver.getRingBuffer().resize( 2048 ); //set bigger buffer
 
 
@@ -130,6 +135,8 @@ int main(int ac, char *av[])
 
 	driver.DumpReaderStats();
 	driver.DeactivateReader();
+
+	std::cerr << "\nStopped\n";
 
 	return 0;
 }

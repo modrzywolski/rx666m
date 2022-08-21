@@ -38,8 +38,8 @@
 #define USB_CYPRESS_VENDOR_ID   				0x04b4
 #define USB_FX3_PRODUCT_ID      				0x00f3
 #define USB_RX666M_MINOR_BASE					193
-#define NUM_CONCURRENT_TRANSFERS  				8
-#define NUM_DATA_URB							NUM_CONCURRENT_TRANSFERS*2
+#define NUM_CONCURRENT_TRANSFERS  				16
+#define NUM_DATA_URB							NUM_CONCURRENT_TRANSFERS*8
 #define DATA_BUFFER_SIZE						(1024*4)
 #define USB_TYPE_OUT							0x40
 #define USB_TYPE_IN								0xC0
@@ -48,11 +48,12 @@
 #define MAX_IOCTL_SIZE          				(2 * 1024)
 
 
-#define GFP_KERNEL_TRY GFP_ATOMIC
 #define ANCHORURB	1
-#define DMA_EN		0
+#define DMA_EN		1
 #define LOG_PERIOD 	(5*HZ)
-#define LOG_EN		1
+#define LOG_EN		0
+
+#define RX666_INFO dev_dbg 
 
 typedef struct
 {
@@ -74,7 +75,6 @@ typedef struct
 	__u32		 tv_usec;
 
 	int			taken;
-	int			taken_from;
 
 	struct rx666m_device_s* dev;
 }rx666m_data_buffer_t;
@@ -101,7 +101,7 @@ typedef struct rx666m_device_s
     wait_queue_head_t     data_in_wait;
 
     atomic_t              data_in_ready;
-    atomic_t              data_in_used; //--->use
+    atomic_t              data_in_use;
     atomic_t              data_in_progress;
 
 #if ANCHORURB
@@ -199,7 +199,7 @@ void stats_dumper_work(struct work_struct * work_struct_ptr)
     struct delayed_work * delayed = container_of(work_struct_ptr, struct delayed_work, work);
     stats_dumper_priv_t * priv = container_of(delayed, stats_dumper_priv_t, stats_dumper_work);
 
-	printk(KERN_INFO "stats_dumper_work:\n");
+	printk(KERN_INFO "rx666m stats_dumper_work:\n");
 
 	dump_info(priv->dev);
 
@@ -227,17 +227,17 @@ static void dump_info(rx666m_device_t *dev)
 	struct list_head* p;
 	unsigned long irq_flags;
 
-	dev_info(&dev->interface->dev, "read_cb_cnt=%ld\n", dev->read_cb_cnt);
-	dev_info(&dev->interface->dev, "bad_status=%ld\n", dev->bad_status);
-	dev_info(&dev->interface->dev, "overrun=%ld\n", dev->overrun);
-	dev_info(&dev->interface->dev, "submitted=%ld\n", dev->submitted);
-	dev_info(&dev->interface->dev, "data_in_ready=%d/%d\n", (int)atomic_read(&dev->data_in_ready), NUM_DATA_URB);
-	dev_info(&dev->interface->dev, "data_in_used=%d/%d\n", (int)atomic_read(&dev->data_in_used), NUM_DATA_URB);
-	dev_info(&dev->interface->dev, "data_in_progress=%d/%d\n", (int)atomic_read(&dev->data_in_progress), NUM_CONCURRENT_TRANSFERS);
+	RX666_INFO(&dev->interface->dev, "read_cb_cnt=%ld\n", dev->read_cb_cnt);
+	RX666_INFO(&dev->interface->dev, "bad_status=%ld\n", dev->bad_status);
+	RX666_INFO(&dev->interface->dev, "overrun=%ld\n", dev->overrun);
+	RX666_INFO(&dev->interface->dev, "submitted=%ld\n", dev->submitted);
+	RX666_INFO(&dev->interface->dev, "data_in_ready=%d/%d\n", (int)atomic_read(&dev->data_in_ready), NUM_DATA_URB);
+	RX666_INFO(&dev->interface->dev, "data_in_use=%d/%d\n", (int)atomic_read(&dev->data_in_use), NUM_DATA_URB);
+	RX666_INFO(&dev->interface->dev, "data_in_progress=%d/%d\n", (int)atomic_read(&dev->data_in_progress), NUM_CONCURRENT_TRANSFERS);
 #if ANCHORURB
-	dev_info(&dev->interface->dev, "usb_anchor_empty %d\n", usb_anchor_empty(&dev->data_in_anchor));
+	RX666_INFO(&dev->interface->dev, "usb_anchor_empty %d\n", usb_anchor_empty(&dev->data_in_anchor));
 #endif
-	dev_info(&dev->interface->dev, "last_read_ret=%ld\n", dev->last_read_ret);
+	RX666_INFO(&dev->interface->dev, "last_read_ret=%ld\n", dev->last_read_ret);
 
 	memset(dev->snapshot->avl_bufs, 0, sizeof(dev->snapshot->avl_bufs));
 	memset(dev->snapshot->busy_bufs, 0, sizeof(dev->snapshot->busy_bufs));
@@ -268,7 +268,7 @@ static void dump_info(rx666m_device_t *dev)
 
 	for(i=0;i<avl_cnt;i++)
 	{
-		dev_info(&dev->interface->dev, "data_in_bufs_avail=%p (addr=%p dma=%p urb=%p urb->status=%s urb->transfer_flags=%x urb->actual_length=%d, cnt=%ld taken=%d taken_from=%d)\n", 
+		RX666_INFO(&dev->interface->dev, "data_in_bufs_avail=%p (addr=%p dma=%p urb=%p urb->status=%s urb->transfer_flags=%x urb->actual_length=%d, cnt=%ld taken=%d)\n", 
 				dev->snapshot->avl_bufs[i], 
 				dev->snapshot->avl_bufs[i]->addr, 
 				(void*)dev->snapshot->avl_bufs[i]->dma, 
@@ -277,12 +277,12 @@ static void dump_info(rx666m_device_t *dev)
 				(int)(dev->snapshot->avl_bufs[i]->urb? dev->snapshot->avl_bufs[i]->urb->transfer_flags : -1), 
 				(int)(dev->snapshot->avl_bufs[i]->urb? dev->snapshot->avl_bufs[i]->urb->actual_length : -1),
 				dev->snapshot->avl_bufs[i]->cnt, 
-				dev->snapshot->avl_bufs[i]->taken, dev->snapshot->avl_bufs[i]->taken_from);
+				dev->snapshot->avl_bufs[i]->taken);
 	}
 
 	for(i=0;i<busy_cnt;i++)
 	{
-		dev_info(&dev->interface->dev, "data_in_bufs_busy=%p (addr=%p dma=%p urb=%p urb->status=%s urb->transfer_flags=%x urb->actual_length=%d, cnt=%ld taken=%d taken_from=%d ts=%u.%u)\n",
+		RX666_INFO(&dev->interface->dev, "data_in_bufs_busy=%p (addr=%p dma=%p urb=%p urb->status=%s urb->transfer_flags=%x urb->actual_length=%d, cnt=%ld taken=%d ts=%u.%u)\n",
 				dev->snapshot->busy_bufs[i], 
 				dev->snapshot->busy_bufs[i]->addr,
 				(void*)dev->snapshot->busy_bufs[i]->dma,
@@ -291,14 +291,14 @@ static void dump_info(rx666m_device_t *dev)
 				(int)(dev->snapshot->busy_bufs[i]->urb? dev->snapshot->busy_bufs[i]->urb->transfer_flags : -1),
 				(int)(dev->snapshot->busy_bufs[i]->urb? dev->snapshot->busy_bufs[i]->urb->actual_length : -1),
 				dev->snapshot->busy_bufs[i]->cnt,
-				dev->snapshot->busy_bufs[i]->taken, dev->snapshot->busy_bufs[i]->taken_from,
+				dev->snapshot->busy_bufs[i]->taken,
 				dev->snapshot->busy_bufs[i]->tv_sec,
 				dev->snapshot->busy_bufs[i]->tv_usec);
 	}
 
 	for(i=0;i<rdy_cnt;i++)
 	{
-		dev_info(&dev->interface->dev, "data_in_bufs_ready=%p (addr=%p dma=%p urb=%p urb->status=%s urb->transfer_flags=%x urb->actual_length=%d, cnt=%ld taken=%d taken_from=%d)\n",
+		RX666_INFO(&dev->interface->dev, "data_in_bufs_ready=%p (addr=%p dma=%p urb=%p urb->status=%s urb->transfer_flags=%x urb->actual_length=%d, cnt=%ld taken=%d)\n",
 				dev->snapshot->rdy_bufs[i],
 				dev->snapshot->rdy_bufs[i]->addr,
 				(void*)dev->snapshot->rdy_bufs[i]->dma,
@@ -307,28 +307,12 @@ static void dump_info(rx666m_device_t *dev)
 				(int)(dev->snapshot->rdy_bufs[i]->urb? dev->snapshot->rdy_bufs[i]->urb->transfer_flags : -1),
 				(int)(dev->snapshot->rdy_bufs[i]->urb? dev->snapshot->rdy_bufs[i]->urb->actual_length : -1),
 				dev->snapshot->rdy_bufs[i]->cnt,
-				dev->snapshot->rdy_bufs[i]->taken, dev->snapshot->rdy_bufs[i]->taken_from);
+				dev->snapshot->rdy_bufs[i]->taken);
 	}
 }
 #endif
 
-#if 0
-static void dump_periodic(rx666m_device_t *dev)
-{
-	s64 ts_diff ;
-	dev->ts_end = ktime_get();
-
-	ts_diff = ktime_to_ms(ktime_sub(dev->ts_end, dev->ts_start));
-	if( ts_diff > 5000 )
-	{
-		dev->ts_start = dev->ts_end;
-
-		dump_info(dev);
-	}
-}
-#endif
-
-static int rx666m_submit_urb(rx666m_device_t *dev, int taken_from)
+static int rx666m_submit_urb(rx666m_device_t *dev)
 {
     struct urb *urb;
     unsigned long irq_flags;
@@ -341,7 +325,7 @@ static int rx666m_submit_urb(rx666m_device_t *dev, int taken_from)
 		ktime_get_ts64(&now);
 
 		spin_lock_irqsave(&dev->data_in_lock, irq_flags);
-		if (atomic_read(&dev->data_in_progress) < NUM_CONCURRENT_TRANSFERS && atomic_read(&dev->data_in_used) < NUM_DATA_URB)
+		if (atomic_read(&dev->data_in_progress) < NUM_CONCURRENT_TRANSFERS && atomic_read(&dev->data_in_use) < NUM_DATA_URB)
 		{
 			if (list_empty(&dev->data_in_bufs_avail))
 			{
@@ -354,10 +338,9 @@ static int rx666m_submit_urb(rx666m_device_t *dev, int taken_from)
 
 			urb = data_buf->urb;
 
-			atomic_inc(&dev->data_in_used);
+			atomic_inc(&dev->data_in_use);
 			atomic_inc(&dev->data_in_progress);
 			data_buf->taken=1;
-			data_buf->taken_from=taken_from;
 			data_buf->tv_sec = now.tv_sec;
 			data_buf->tv_usec = now.tv_nsec;
 
@@ -384,7 +367,7 @@ static int rx666m_submit_urb(rx666m_device_t *dev, int taken_from)
 				spin_lock_irqsave(&dev->data_in_lock, irq_flags);	
 				list_move(&data_buf->list, &dev->data_in_bufs_avail);
 				data_buf->taken=0;
-				atomic_dec(&dev->data_in_used);
+				atomic_dec(&dev->data_in_use);
 				atomic_dec(&dev->data_in_progress);
 				spin_unlock_irqrestore(&dev->data_in_lock, irq_flags);
 
@@ -456,24 +439,6 @@ static void rx666m_read_cb(struct urb *urb)
 	dev = data_buf->dev;
 	dev->read_cb_cnt++; //TODO: change to atomic
 
-
-	switch (urb->status) {
-	case 0:             /* success */
-		break;
-	case -ETIMEDOUT:
-		dev_err_ratelimited(&dev->interface->dev, "URB timeout %d urb=%p\n", urb->status, urb);
-		break;
-	case -ENOENT:
-	case -ECONNRESET:
-	case -ENODEV:
-	case -ESHUTDOWN:
-		dev_err_ratelimited(&dev->interface->dev, "URB failed1 %d urb=%p, ret\n", urb->status, urb);
-		break;
-	default:            /* error */
-		dev_err_ratelimited(&dev->interface->dev, "URB failed2 %d urb=%p\n", urb->status, urb);
-		break;
-	}
-
 	if(urb->status)
 		dev_err_ratelimited(&dev->interface->dev, "URB failed %d [%s]", urb->status, translate_status(urb->status));
 
@@ -485,7 +450,7 @@ static void rx666m_read_cb(struct urb *urb)
 	if(urb->status)
 	{
 		list_move_tail(&data_buf->list, &dev->data_in_bufs_avail);
-		atomic_dec(&dev->data_in_used);
+		atomic_dec(&dev->data_in_use);
 		atomic_dec(&dev->data_in_progress);
 	}
 	else
@@ -504,23 +469,18 @@ static void rx666m_read_cb(struct urb *urb)
 
     if (dev->rx_en)
 	{
-#if 0
+		//submit missing URBs
 		int i;
-		for(i=0;i<NUM_CONCURRENT_TRANSFERS && atomic_read(&dev->data_in_progress) < NUM_CONCURRENT_TRANSFERS ;++i)
-		if(rx666m_submit_urb(dev, 1))
+		for(i=0;
+			i<NUM_CONCURRENT_TRANSFERS && 
+			atomic_read(&dev->data_in_progress) < NUM_CONCURRENT_TRANSFERS;
+			++i)
 		{
-			dev->overrun++;
-			dev_err_ratelimited(&dev->interface->dev, "URB submit overrun CB\n");
+			if(rx666m_submit_urb(dev))
+			{
+				dev->overrun++;
+			}
 		}
-		else
-		{
-			//dev_info(&dev->interface->dev, "URB submited from CB\n");
-	//dev_info(&dev->interface->dev, "data_in_ready=%d/%d\n", (int)atomic_read(&dev->data_in_ready), NUM_DATA_URB);
-	//dev_info(&dev->interface->dev, "data_in_used=%d/%d\n", (int)atomic_read(&dev->data_in_used), NUM_DATA_URB);
-	//dev_info(&dev->interface->dev, "data_in_progress=%d/%d\n", (int)atomic_read(&dev->data_in_progress), NUM_CONCURRENT_TRANSFERS);
-
-		}
-#endif
 	}
 	if(!status)
 	{
@@ -559,11 +519,11 @@ static int rx666m_start(rx666m_device_t *dev)
     void *buf;
     struct urb *urb;
 
-	dev_info(&dev->interface->dev, "starting\n");
+	RX666_INFO(&dev->interface->dev, "starting\n");
 
     dev->rx_en = 0;
     atomic_set(&dev->data_in_ready, 0);
-    atomic_set(&dev->data_in_used, 0);
+    atomic_set(&dev->data_in_use, 0);
 
 #if LOG_EN
 	dev->snapshot = (rx666m_driver_snapshot_t*)kmalloc(sizeof(rx666m_driver_snapshot_t), GFP_KERNEL);
@@ -591,9 +551,8 @@ static int rx666m_start(rx666m_device_t *dev)
 #if DMA_EN
         buf = usb_alloc_coherent(dev->udev, DATA_BUFFER_SIZE, GFP_ATOMIC, &entry->dma);
 #else
-		buf = kzalloc(DATA_BUFFER_SIZE, GFP_KERNEL_TRY);
+		buf = kzalloc(DATA_BUFFER_SIZE, GFP_KERNEL);
 #endif
-        //memset(buf, 0, DATA_BUFFER_SIZE);
 
         if (!buf)
 		{
@@ -629,7 +588,7 @@ static int rx666m_start(rx666m_device_t *dev)
 		stats_dumper_start_workqueue( &dev->stats_dumper_priv, dev );
 	#endif
 
-	dev_info(&dev->interface->dev, "started\n");
+	RX666_INFO(&dev->interface->dev, "started\n");
 
     return 0;
 }
@@ -671,7 +630,7 @@ static void rx666m_stop(rx666m_device_t *dev)
 	INIT_LIST_HEAD(&dev->data_in_bufs_busy);
 	INIT_LIST_HEAD(&dev->data_in_bufs_ready);
 
-	dev_info(&dev->interface->dev, "stop: avail=%d busy=%d\n", list_empty(&dev->data_in_bufs_avail), list_empty(&dev->data_in_bufs_busy));
+	RX666_INFO(&dev->interface->dev, "stop: avail=%d busy=%d\n", list_empty(&dev->data_in_bufs_avail), list_empty(&dev->data_in_bufs_busy));
 }
 
 static int disable_rx(rx666m_device_t *dev)
@@ -679,7 +638,7 @@ static int disable_rx(rx666m_device_t *dev)
     int ret;
 	unsigned long flags;
 
-	dev_info(&dev->interface->dev, "disabling rx\n");
+	RX666_INFO(&dev->interface->dev, "disabling rx\n");
 
     if (dev->intnum != 1)
         return -1;
@@ -695,7 +654,7 @@ static int disable_rx(rx666m_device_t *dev)
 
     ret = 0;
     atomic_set(&dev->data_in_ready, 0);
-    atomic_set(&dev->data_in_used, 0);
+    atomic_set(&dev->data_in_use, 0);
     atomic_set(&dev->data_in_progress, 0);
 
 	spin_lock_irqsave(&dev->data_in_lock, flags);
@@ -707,7 +666,7 @@ static int disable_rx(rx666m_device_t *dev)
 	spin_unlock_irqrestore(&dev->data_in_lock, flags);
 
 
-	dev_info(&dev->interface->dev, "rx disabled\n");
+	RX666_INFO(&dev->interface->dev, "rx disabled\n");
 
     return ret;
 }
@@ -719,7 +678,7 @@ static int enable_rx(rx666m_device_t *dev)
     unsigned int val;
     val = 1;
 
-	dev_info(&dev->interface->dev, "enabling rx\n");
+	RX666_INFO(&dev->interface->dev, "enabling rx\n");
 
     if (dev->intnum != 1)
 	{
@@ -738,8 +697,7 @@ static int enable_rx(rx666m_device_t *dev)
 
     for (i=0; i<NUM_CONCURRENT_TRANSFERS; i++)
 	{
-		dev_err(&dev->interface->dev, "Submit initial URBs (%d/%d)\n", i, NUM_CONCURRENT_TRANSFERS); /////////////////////
-        if ((ret = rx666m_submit_urb(dev, 2)) < 0)
+        if ((ret = rx666m_submit_urb(dev)) < 0)
 		{
             dev_err(&dev->interface->dev, "Error submitting initial RX URBs (%d/%d), error=%d\n", i, NUM_CONCURRENT_TRANSFERS, ret);
             break;
@@ -747,7 +705,7 @@ static int enable_rx(rx666m_device_t *dev)
     }
 
 
-	dev_info(&dev->interface->dev, "rx enabled\n");
+	RX666_INFO(&dev->interface->dev, "rx enabled\n");
 
     return ret;
 }
@@ -803,27 +761,29 @@ static ssize_t rx666m_read(struct file *file, char __user *buf, size_t count, lo
 
     for(;dev->rx_en;)
 	{
-#if 1
+		//submit missing URBs
 		int i;
-        for(i=0;i<NUM_CONCURRENT_TRANSFERS && atomic_read(&dev->data_in_progress) < NUM_CONCURRENT_TRANSFERS ;++i)
-        if (atomic_read(&dev->data_in_progress) < NUM_CONCURRENT_TRANSFERS)
+        for(i=0;
+			i<NUM_CONCURRENT_TRANSFERS && 
+			atomic_read(&dev->data_in_progress) < NUM_CONCURRENT_TRANSFERS;
+			++i)
 		{
-			rx666m_submit_urb(dev, 4);
-			//dev_err_ratelimited(&dev->interface->dev, "URB submit1\n");
+			if (atomic_read(&dev->data_in_progress) < NUM_CONCURRENT_TRANSFERS)
+			{
+				rx666m_submit_urb(dev);
+			}
 		}
-#endif
+
         spin_lock_irqsave(&dev->data_in_lock, flags);
         if (atomic_read(&dev->data_in_ready) && !list_empty(&dev->data_in_bufs_ready))
 		{
-			//dev_info(&dev->interface->dev, "read some\n");
             atomic_dec(&dev->data_in_ready);
-            atomic_dec(&dev->data_in_used);
+            atomic_dec(&dev->data_in_use);
 
 			data_buf = list_first_entry(&dev->data_in_bufs_ready, rx666m_data_buffer_t, list);
 			list_del(&data_buf->list);
             spin_unlock_irqrestore(&dev->data_in_lock, flags);
 
-#if 0
             if (copy_to_user(&buf[ptr], data_buf->addr, DATA_BUFFER_SIZE))
 			{
                 ret = -EFAULT;
@@ -833,28 +793,11 @@ static ssize_t rx666m_read(struct file *file, char __user *buf, size_t count, lo
 				ptr += DATA_BUFFER_SIZE;
                 ret = 0;
             }
-#else
-			ptr += DATA_BUFFER_SIZE;
-			ret = 0;
-#endif
+
 			spin_lock_irqsave(&dev->data_in_lock, flags);
 			list_add(&data_buf->list, &dev->data_in_bufs_avail);
 			spin_unlock_irqrestore(&dev->data_in_lock, flags);
 
-			//dev_info(&dev->interface->dev, "read some - done\n");
-	//dev_info(&dev->interface->dev, "data_in_ready=%d/%d\n", (int)atomic_read(&dev->data_in_ready), NUM_DATA_URB);
-	//dev_info(&dev->interface->dev, "data_in_used=%d/%d\n", (int)atomic_read(&dev->data_in_used), NUM_DATA_URB);
-	//dev_info(&dev->interface->dev, "data_in_progress=%d/%d\n", (int)atomic_read(&dev->data_in_progress), NUM_CONCURRENT_TRANSFERS);
-
-#if 0
-			//if(!atomic_read(&dev->data_in_progress))
-	        for(i=0;i<NUM_CONCURRENT_TRANSFERS && atomic_read(&dev->data_in_progress) < NUM_CONCURRENT_TRANSFERS ;++i)
-            if (atomic_read(&dev->data_in_progress) < NUM_CONCURRENT_TRANSFERS)
-			{
-                rx666m_submit_urb(dev, 3);
-			//	dev_err_ratelimited(&dev->interface->dev, "URB submit2\n");
-			}
-#endif
 			if(!ret && count-ptr < DATA_BUFFER_SIZE)
 			{
 				ret = ptr;
@@ -873,12 +816,12 @@ static ssize_t rx666m_read(struct file *file, char __user *buf, size_t count, lo
             ret = wait_event_interruptible_timeout(dev->data_in_wait, atomic_read(&dev->data_in_ready), RX666_READ_TIMEOUT_S * HZ);
             if (ret < 0)
 			{
-				dev_info(&dev->interface->dev, "read error - wait_event_interruptible_timeout\n");
+				RX666_INFO(&dev->interface->dev, "read error - wait_event_interruptible_timeout\n");
                 break;
             }
 			else if (ret == 0)
 			{
-				dev_info(&dev->interface->dev, "read timeout\n");
+				RX666_INFO(&dev->interface->dev, "read timeout\n");
                 ret = -ETIMEDOUT;
                 break;
             }
@@ -891,7 +834,7 @@ static ssize_t rx666m_read(struct file *file, char __user *buf, size_t count, lo
 
 	if(ret<0)
 	{
-		dev_info(&dev->interface->dev, "read error ret=%ld\n", ret);
+		RX666_INFO(&dev->interface->dev, "read error ret=%ld\n", ret);
 	}
 
 	dev->last_read_ret = ret;
@@ -921,7 +864,7 @@ long rx666m_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
     dev = file->private_data;
     data = (void __user *)arg;
 
-	dev_info(&dev->interface->dev, "ioctl: %d \n", cmd);
+	RX666_INFO(&dev->interface->dev, "ioctl: %d \n", cmd);
 
 	if (_IOC_TYPE(cmd) != MYDRBASE)
 		return -EINVAL;
@@ -934,12 +877,12 @@ long rx666m_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 					if(!buf)
 						return -ENOMEM;
 
-				dev_info(&dev->interface->dev, "RX666M_IS_BOOTLOADER_RUNNING\n");
+				RX666_INFO(&dev->interface->dev, "RX666M_IS_BOOTLOADER_RUNNING\n");
 
 				retval = usb_control_msg(dev->udev, usb_sndctrlpipe(dev->udev, 0),
 						0xA0, 0x40, 0x0000, 0x0000, buf, 1, RX666_TIMEOUT_MS);
 
-				dev_info(&dev->interface->dev, "RX666M_IS_BOOTLOADER_RUNNING: ret=%d retval=%d\n", (int)ret, (int)retval);
+				RX666_INFO(&dev->interface->dev, "RX666M_IS_BOOTLOADER_RUNNING: ret=%d retval=%d\n", (int)ret, (int)retval);
 
 				if(!retval)
 					retval = buf[0];
@@ -950,7 +893,7 @@ long rx666m_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 		case RX666M_WRITE_RAM:
 			retval = 0;
 
-			dev_info(&dev->interface->dev, "RX666M_WRITE_RAM\n");
+			RX666_INFO(&dev->interface->dev, "RX666M_WRITE_RAM\n");
 
             if (copy_from_user(&arg_wr_ram, data, sizeof(rx666m_ioctl_write_ram_t))) {
                 return -EFAULT;
@@ -979,7 +922,7 @@ long rx666m_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 				{
 					size_t size = (arg_wr_ram.len > MAX_IOCTL_SIZE) ? MAX_IOCTL_SIZE : arg_wr_ram.len;
 
-					dev_info(&dev->interface->dev, "RX666M_WRITE_RAM arg_wr_ram.address=%x size=%lx\n", arg_wr_ram.address, size);
+					RX666_INFO(&dev->interface->dev, "RX666M_WRITE_RAM arg_wr_ram.address=%x size=%lx\n", arg_wr_ram.address, size);
 
 					if (copy_from_user(buf, arg_wr_ram.firmware + index, size)) {
 						retval=-EFAULT;
@@ -996,7 +939,7 @@ long rx666m_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 						break;
 					}
 
-					dev_info(&dev->interface->dev, "RX666M_WRITE_RAM retval=%d arg_wr_ram.address=%x size=%lx\n", retval, arg_wr_ram.address, size);
+					RX666_INFO(&dev->interface->dev, "RX666M_WRITE_RAM retval=%d arg_wr_ram.address=%x size=%lx\n", retval, arg_wr_ram.address, size);
 
 					arg_wr_ram.len -= size;
 					arg_wr_ram.address += size;
@@ -1008,7 +951,7 @@ long rx666m_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 
 			break;
 		case RX666M_I2C_READ:
-			dev_info(&dev->interface->dev, "RX666M_I2C_READ address\n");
+			RX666_INFO(&dev->interface->dev, "RX666M_I2C_READ address\n");
 			retval = 0;
 
 			buf = (uint8_t*)kmalloc(MAX_IOCTL_SIZE, GFP_KERNEL);
@@ -1024,7 +967,7 @@ long rx666m_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 			{
 				rx666m_ioctl_i2c_transfer_t *tr_data = (rx666m_ioctl_i2c_transfer_t*)buf;
 
-				dev_info(&dev->interface->dev, "RX666M_I2C_READ address=0x%x reg=0x%x len=0x%x", (int)tr_data->address, (int)tr_data->reg, (int)tr_data->len);
+				RX666_INFO(&dev->interface->dev, "RX666M_I2C_READ address=0x%x reg=0x%x len=0x%x", (int)tr_data->address, (int)tr_data->reg, (int)tr_data->len);
 
 				ret = usb_control_msg(dev->udev, usb_rcvctrlpipe(dev->udev, 0),
 						0xbe, 0xc0, tr_data->address, tr_data->reg,
@@ -1049,7 +992,7 @@ long rx666m_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 			break;
 
 		case RX666M_I2C_WRITE:
-			dev_info(&dev->interface->dev, "RX666M_I2C_WRITE address\n");
+			RX666_INFO(&dev->interface->dev, "RX666M_I2C_WRITE address\n");
 			retval = 0;
 
 			buf = (uint8_t*)kmalloc(MAX_IOCTL_SIZE, GFP_KERNEL);
@@ -1065,7 +1008,7 @@ long rx666m_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 			{
 				rx666m_ioctl_i2c_transfer_t *tr_data = (rx666m_ioctl_i2c_transfer_t*)buf;
 
-				dev_info(&dev->interface->dev, "RX666M_I2C_WRITE address=0x%x reg=0x%x len=0x%x", (int)tr_data->address, (int)tr_data->reg, (int)tr_data->len);
+				RX666_INFO(&dev->interface->dev, "RX666M_I2C_WRITE address=0x%x reg=0x%x len=0x%x", (int)tr_data->address, (int)tr_data->reg, (int)tr_data->len);
 
 				ret = usb_control_msg(dev->udev, usb_sndctrlpipe(dev->udev, 0),
 						0xba, 0x40, tr_data->address, tr_data->reg,
@@ -1090,7 +1033,7 @@ long rx666m_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 			break;
 
 		case RX666M_GPIO_WRITE:
-			dev_info(&dev->interface->dev, "RX666M_GPIO_WRITE address\n");
+			RX666_INFO(&dev->interface->dev, "RX666M_GPIO_WRITE address\n");
 			retval = 0;
 
 			buf = (uint8_t*)kmalloc(MAX_IOCTL_SIZE, GFP_KERNEL);
@@ -1113,7 +1056,7 @@ long rx666m_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 			break;
 
 		case RX666M_START:
-			dev_info(&dev->interface->dev, "RX666M_SART\n");
+			RX666_INFO(&dev->interface->dev, "RX666M_SART\n");
 			retval = 0;
 
 			buf = (uint8_t*)kmalloc(MAX_IOCTL_SIZE, GFP_KERNEL);
@@ -1135,7 +1078,7 @@ long rx666m_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 			break;
     }
 
-	dev_info(&dev->interface->dev, "ioctl end: %x retval=%d\n", (int)cmd, (int)retval);
+	RX666_INFO(&dev->interface->dev, "ioctl end: %x retval=%d\n", (int)cmd, (int)retval);
 
     return retval;
 }
@@ -1146,7 +1089,7 @@ static int rx666m_open(struct inode *inode, struct file *file)
     struct usb_interface *interface;
     int subminor;
 
-	printk("open\n");
+	printk("rx666m open\n");
 
     subminor = iminor(inode);
 
@@ -1166,7 +1109,7 @@ static int rx666m_open(struct inode *inode, struct file *file)
 
     file->private_data = dev;
 
-	dev_info(&interface->dev, "opened\n");
+	RX666_INFO(&interface->dev, "opened\n");
 
     return 0;
 }
@@ -1228,7 +1171,7 @@ static int rx666m_probe(struct usb_interface *interface, const struct usb_device
 	struct usb_device *udev;
     int retval;
 
-	dev_info(&interface->dev, "probing...\n");
+	RX666_INFO(&interface->dev, "probing...\n");
 
     if (interface->cur_altsetting->desc.bInterfaceNumber != 0)
 	{
@@ -1238,7 +1181,7 @@ static int rx666m_probe(struct usb_interface *interface, const struct usb_device
     udev = interface_to_usbdev(interface);
 
 
-    dev = kzalloc(sizeof(rx666m_device_t), GFP_KERNEL_TRY);
+    dev = kzalloc(sizeof(rx666m_device_t), GFP_KERNEL);
     if (dev == NULL)
 	{
         dev_err(&interface->dev, "Out of memory\n");
@@ -1278,7 +1221,7 @@ static int rx666m_probe(struct usb_interface *interface, const struct usb_device
     }
 
 
-    dev_info(&interface->dev, "device is now attached\n");
+    RX666_INFO(&interface->dev, "device is now attached\n");
     return 0;
 
 error_oom:
@@ -1308,7 +1251,7 @@ static void rx666m_disconnect(struct usb_interface *interface)
 
     usb_put_dev(dev->udev);
 
-    dev_info(&interface->dev, "device has been disconnected\n");
+    RX666_INFO(&interface->dev, "device has been disconnected\n");
 
     kfree(dev);
 }

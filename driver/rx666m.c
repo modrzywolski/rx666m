@@ -38,19 +38,21 @@
 #define USB_CYPRESS_VENDOR_ID   				0x04b4
 #define USB_FX3_PRODUCT_ID      				0x00f3
 #define USB_RX666M_MINOR_BASE					193
-#define NUM_CONCURRENT_TRANSFERS  				32
-#define NUM_DATA_URB							NUM_CONCURRENT_TRANSFERS*16
+#define NUM_CONCURRENT_TRANSFERS  				8
+#define NUM_DATA_URB							NUM_CONCURRENT_TRANSFERS*2
 #define DATA_BUFFER_SIZE						(1024*4)
 #define USB_TYPE_OUT							0x40
 #define USB_TYPE_IN								0xC0
 #define RX666_TIMEOUT_MS						1000
+#define RX666_READ_TIMEOUT_S					5
 #define MAX_IOCTL_SIZE          				(2 * 1024)
 
 
+#define GFP_KERNEL_TRY GFP_ATOMIC
 #define ANCHORURB	1
-#define DMA_EN		1
+#define DMA_EN		0
 #define LOG_PERIOD 	(5*HZ)
-#define LOG_EN		0
+#define LOG_EN		1
 
 typedef struct
 {
@@ -72,6 +74,7 @@ typedef struct
 	__u32		 tv_usec;
 
 	int			taken;
+	int			taken_from;
 
 	struct rx666m_device_s* dev;
 }rx666m_data_buffer_t;
@@ -98,7 +101,7 @@ typedef struct rx666m_device_s
     wait_queue_head_t     data_in_wait;
 
     atomic_t              data_in_ready;
-    atomic_t              data_in_used;
+    atomic_t              data_in_used; //--->use
     atomic_t              data_in_progress;
 
 #if ANCHORURB
@@ -148,6 +151,48 @@ MODULE_DEVICE_TABLE(usb, rx666m_table);
 
 #if LOG_EN
 static void dump_info(rx666m_device_t *dev);
+
+static inline const char* status2E(int status)
+{
+        char *errmsg = "E???";
+
+        switch (status) {
+		case 0:
+                errmsg = "OK";
+                break;
+        case -ENOENT:
+                errmsg = "ENOENT";
+                break;
+        case -ECONNRESET:
+                errmsg = "ECONNRESET";
+                break;
+        case -ENOSR:
+                errmsg = "ENOSR";
+                break;
+        case -EPIPE:
+                errmsg = "EPIPE";
+                break;
+        case -EOVERFLOW:
+                errmsg = "EOVERFLOW";
+                break;
+        case -EPROTO:
+                errmsg = "EPROTO";
+                break;
+        case -EILSEQ:
+                errmsg = "EILSEQ";
+                break;
+        case -ETIME:
+                errmsg = "ETIME";
+                break;
+		case -EINPROGRESS:
+                errmsg = "EINPROGRESS";
+                break;
+        }
+
+		return errmsg;
+}
+
+
 
 void stats_dumper_work(struct work_struct * work_struct_ptr)
 {
@@ -217,46 +262,52 @@ static void dump_info(rx666m_device_t *dev)
 	}
 	spin_unlock_irqrestore(&dev->data_in_lock, irq_flags);
 
+	if(avl_cnt > NUM_DATA_URB) dev_err(&dev->interface->dev, "avl_cnt overflow\n");
+	if(avl_cnt > NUM_DATA_URB) dev_err(&dev->interface->dev, "avl_cnt overflow\n");
+	if(rdy_cnt > NUM_DATA_URB) dev_err(&dev->interface->dev, "rdy_cnt overflow\n");
+
 	for(i=0;i<avl_cnt;i++)
 	{
-		dev_info(&dev->interface->dev, "data_in_bufs_avail=%p (addr=%p dma=%p urb=%p urb->status=%d urb->transfer_flags=%x cnt=%ld taken=%d)\n", 
+		dev_info(&dev->interface->dev, "data_in_bufs_avail=%p (addr=%p dma=%p urb=%p urb->status=%s urb->transfer_flags=%x urb->actual_length=%d, cnt=%ld taken=%d taken_from=%d)\n", 
 				dev->snapshot->avl_bufs[i], 
 				dev->snapshot->avl_bufs[i]->addr, 
 				(void*)dev->snapshot->avl_bufs[i]->dma, 
 				dev->snapshot->avl_bufs[i]->urb, 
-				dev->snapshot->avl_bufs[i]->urb ? dev->snapshot->avl_bufs[i]->urb->status : -1, 
+				dev->snapshot->avl_bufs[i]->urb ? status2E(dev->snapshot->avl_bufs[i]->urb->status) : "???", 
 				(int)(dev->snapshot->avl_bufs[i]->urb? dev->snapshot->avl_bufs[i]->urb->transfer_flags : -1), 
+				(int)(dev->snapshot->avl_bufs[i]->urb? dev->snapshot->avl_bufs[i]->urb->actual_length : -1),
 				dev->snapshot->avl_bufs[i]->cnt, 
-				dev->snapshot->avl_bufs[i]->taken);
+				dev->snapshot->avl_bufs[i]->taken, dev->snapshot->avl_bufs[i]->taken_from);
 	}
 
 	for(i=0;i<busy_cnt;i++)
 	{
-		dev_info(&dev->interface->dev, "data_in_bufs_busy=%p (addr=%p dma=%p urb=%p urb->status=%d urb->transfer_flags=%x cnt=%ld taken=%d ts=%u.%u)\n",
+		dev_info(&dev->interface->dev, "data_in_bufs_busy=%p (addr=%p dma=%p urb=%p urb->status=%s urb->transfer_flags=%x urb->actual_length=%d, cnt=%ld taken=%d taken_from=%d ts=%u.%u)\n",
 				dev->snapshot->busy_bufs[i], 
 				dev->snapshot->busy_bufs[i]->addr,
 				(void*)dev->snapshot->busy_bufs[i]->dma,
 				dev->snapshot->busy_bufs[i]->urb,
-				dev->snapshot->busy_bufs[i]->urb ? dev->snapshot->busy_bufs[i]->urb->status : -1,
+				dev->snapshot->busy_bufs[i]->urb ? status2E(dev->snapshot->busy_bufs[i]->urb->status) : "???",
 				(int)(dev->snapshot->busy_bufs[i]->urb? dev->snapshot->busy_bufs[i]->urb->transfer_flags : -1),
+				(int)(dev->snapshot->busy_bufs[i]->urb? dev->snapshot->busy_bufs[i]->urb->actual_length : -1),
 				dev->snapshot->busy_bufs[i]->cnt,
-				dev->snapshot->busy_bufs[i]->taken,
+				dev->snapshot->busy_bufs[i]->taken, dev->snapshot->busy_bufs[i]->taken_from,
 				dev->snapshot->busy_bufs[i]->tv_sec,
 				dev->snapshot->busy_bufs[i]->tv_usec);
 	}
 
 	for(i=0;i<rdy_cnt;i++)
 	{
-		dev_info(&dev->interface->dev, "data_in_bufs_ready=%p (addr=%p dma=%p urb=%p urb->status=%d urb->transfer_flags=%x urb->actual_length=%d, cnt=%ld taken=%d)\n",
+		dev_info(&dev->interface->dev, "data_in_bufs_ready=%p (addr=%p dma=%p urb=%p urb->status=%s urb->transfer_flags=%x urb->actual_length=%d, cnt=%ld taken=%d taken_from=%d)\n",
 				dev->snapshot->rdy_bufs[i],
 				dev->snapshot->rdy_bufs[i]->addr,
 				(void*)dev->snapshot->rdy_bufs[i]->dma,
 				dev->snapshot->rdy_bufs[i]->urb,
-				dev->snapshot->rdy_bufs[i]->urb ? dev->snapshot->rdy_bufs[i]->urb->status : -1,
+				dev->snapshot->rdy_bufs[i]->urb ? status2E(dev->snapshot->rdy_bufs[i]->urb->status) : "???",
 				(int)(dev->snapshot->rdy_bufs[i]->urb? dev->snapshot->rdy_bufs[i]->urb->transfer_flags : -1),
 				(int)(dev->snapshot->rdy_bufs[i]->urb? dev->snapshot->rdy_bufs[i]->urb->actual_length : -1),
 				dev->snapshot->rdy_bufs[i]->cnt,
-				dev->snapshot->rdy_bufs[i]->taken);
+				dev->snapshot->rdy_bufs[i]->taken, dev->snapshot->rdy_bufs[i]->taken_from);
 	}
 }
 #endif
@@ -277,7 +328,7 @@ static void dump_periodic(rx666m_device_t *dev)
 }
 #endif
 
-static int rx666m_submit_urb(rx666m_device_t *dev)
+static int rx666m_submit_urb(rx666m_device_t *dev, int taken_from)
 {
     struct urb *urb;
     unsigned long irq_flags;
@@ -304,7 +355,9 @@ static int rx666m_submit_urb(rx666m_device_t *dev)
 			urb = data_buf->urb;
 
 			atomic_inc(&dev->data_in_used);
+			atomic_inc(&dev->data_in_progress);
 			data_buf->taken=1;
+			data_buf->taken_from=taken_from;
 			data_buf->tv_sec = now.tv_sec;
 			data_buf->tv_usec = now.tv_nsec;
 
@@ -312,7 +365,6 @@ static int rx666m_submit_urb(rx666m_device_t *dev)
 
 			data_buf->cnt++;
 
-			atomic_inc(&dev->data_in_progress);
 			usb_fill_bulk_urb(urb, dev->udev, usb_rcvbulkpipe(dev->udev, 0x81),
 					data_buf->addr, DATA_BUFFER_SIZE, rx666m_read_cb, data_buf);
 					urb->transfer_flags = 0;
@@ -332,9 +384,10 @@ static int rx666m_submit_urb(rx666m_device_t *dev)
 				spin_lock_irqsave(&dev->data_in_lock, irq_flags);	
 				list_move(&data_buf->list, &dev->data_in_bufs_avail);
 				data_buf->taken=0;
+				atomic_dec(&dev->data_in_used);
+				atomic_dec(&dev->data_in_progress);
 				spin_unlock_irqrestore(&dev->data_in_lock, irq_flags);
 
-				atomic_dec(&dev->data_in_progress);
 			}
 			else
 			{
@@ -346,7 +399,7 @@ static int rx666m_submit_urb(rx666m_device_t *dev)
 		else
 		{
 			//no more available urbs
-			break;
+			goto leave_spin;
 		}
 	}
 leave_spin:
@@ -356,8 +409,7 @@ leave_rx:
     return ret;
 }
 
-#if 0
-static inline void print_err_status(struct tm6000_core *dev, int packet, int status)
+static inline const char* translate_status(int status)
 {
         char *errmsg = "Unknown";
 
@@ -387,15 +439,9 @@ static inline void print_err_status(struct tm6000_core *dev, int packet, int sta
                 errmsg = "Device does not respond";
                 break;
         }
-        if (packet < 0) {
-                dprintk(dev, 1, "URB status %d [%s].\n",
-                        status, errmsg);
-        } else {
-                dprintk(dev, 1, "URB packet %d, status %d [%s].\n",
-                        packet, status, errmsg);
-        }
+
+		return errmsg;
 }
-#endif
 
 static void rx666m_read_cb(struct urb *urb)
 {
@@ -404,6 +450,8 @@ static void rx666m_read_cb(struct urb *urb)
     unsigned long flags;
 	int status;
 
+	usb_unanchor_urb(urb);
+
     data_buf = (rx666m_data_buffer_t*)urb->context;
 	dev = data_buf->dev;
 	dev->read_cb_cnt++; //TODO: change to atomic
@@ -411,18 +459,23 @@ static void rx666m_read_cb(struct urb *urb)
 
 	switch (urb->status) {
 	case 0:             /* success */
+		break;
 	case -ETIMEDOUT:
+		dev_err_ratelimited(&dev->interface->dev, "URB timeout %d urb=%p\n", urb->status, urb);
 		break;
 	case -ENOENT:
 	case -ECONNRESET:
 	case -ENODEV:
 	case -ESHUTDOWN:
 		dev_err_ratelimited(&dev->interface->dev, "URB failed1 %d urb=%p, ret\n", urb->status, urb);
-		return;
+		break;
 	default:            /* error */
 		dev_err_ratelimited(&dev->interface->dev, "URB failed2 %d urb=%p\n", urb->status, urb);
 		break;
 	}
+
+	if(urb->status)
+		dev_err_ratelimited(&dev->interface->dev, "URB failed %d [%s]", urb->status, translate_status(urb->status));
 
 	if(!data_buf->taken)
 		dev_err_ratelimited(&dev->interface->dev, "Buffer not taken %p\n", data_buf);
@@ -451,8 +504,23 @@ static void rx666m_read_cb(struct urb *urb)
 
     if (dev->rx_en)
 	{
-		if(rx666m_submit_urb(dev))
+#if 0
+		int i;
+		for(i=0;i<NUM_CONCURRENT_TRANSFERS && atomic_read(&dev->data_in_progress) < NUM_CONCURRENT_TRANSFERS ;++i)
+		if(rx666m_submit_urb(dev, 1))
+		{
 			dev->overrun++;
+			dev_err_ratelimited(&dev->interface->dev, "URB submit overrun CB\n");
+		}
+		else
+		{
+			//dev_info(&dev->interface->dev, "URB submited from CB\n");
+	//dev_info(&dev->interface->dev, "data_in_ready=%d/%d\n", (int)atomic_read(&dev->data_in_ready), NUM_DATA_URB);
+	//dev_info(&dev->interface->dev, "data_in_used=%d/%d\n", (int)atomic_read(&dev->data_in_used), NUM_DATA_URB);
+	//dev_info(&dev->interface->dev, "data_in_progress=%d/%d\n", (int)atomic_read(&dev->data_in_progress), NUM_CONCURRENT_TRANSFERS);
+
+		}
+#endif
 	}
 	if(!status)
 	{
@@ -523,7 +591,7 @@ static int rx666m_start(rx666m_device_t *dev)
 #if DMA_EN
         buf = usb_alloc_coherent(dev->udev, DATA_BUFFER_SIZE, GFP_ATOMIC, &entry->dma);
 #else
-		buf = kzalloc(DATA_BUFFER_SIZE, GFP_KERNEL);
+		buf = kzalloc(DATA_BUFFER_SIZE, GFP_KERNEL_TRY);
 #endif
         //memset(buf, 0, DATA_BUFFER_SIZE);
 
@@ -536,7 +604,7 @@ static int rx666m_start(rx666m_device_t *dev)
 
         entry->addr = buf;
 
-        urb = usb_alloc_urb(0, GFP_KERNEL);
+        urb = usb_alloc_urb(0, GFP_ATOMIC);
         if (!buf)
 		{
             dev_err_ratelimited(&dev->interface->dev, "Could not allocate data IN URB\n");
@@ -670,7 +738,8 @@ static int enable_rx(rx666m_device_t *dev)
 
     for (i=0; i<NUM_CONCURRENT_TRANSFERS; i++)
 	{
-        if ((ret = rx666m_submit_urb(dev)) < 0)
+		dev_err(&dev->interface->dev, "Submit initial URBs (%d/%d)\n", i, NUM_CONCURRENT_TRANSFERS); /////////////////////
+        if ((ret = rx666m_submit_urb(dev, 2)) < 0)
 		{
             dev_err(&dev->interface->dev, "Error submitting initial RX URBs (%d/%d), error=%d\n", i, NUM_CONCURRENT_TRANSFERS, ret);
             break;
@@ -734,9 +803,19 @@ static ssize_t rx666m_read(struct file *file, char __user *buf, size_t count, lo
 
     for(;dev->rx_en;)
 	{
+#if 1
+		int i;
+        for(i=0;i<NUM_CONCURRENT_TRANSFERS && atomic_read(&dev->data_in_progress) < NUM_CONCURRENT_TRANSFERS ;++i)
+        if (atomic_read(&dev->data_in_progress) < NUM_CONCURRENT_TRANSFERS)
+		{
+			rx666m_submit_urb(dev, 4);
+			//dev_err_ratelimited(&dev->interface->dev, "URB submit1\n");
+		}
+#endif
         spin_lock_irqsave(&dev->data_in_lock, flags);
         if (atomic_read(&dev->data_in_ready) && !list_empty(&dev->data_in_bufs_ready))
 		{
+			//dev_info(&dev->interface->dev, "read some\n");
             atomic_dec(&dev->data_in_ready);
             atomic_dec(&dev->data_in_used);
 
@@ -744,6 +823,7 @@ static ssize_t rx666m_read(struct file *file, char __user *buf, size_t count, lo
 			list_del(&data_buf->list);
             spin_unlock_irqrestore(&dev->data_in_lock, flags);
 
+#if 0
             if (copy_to_user(&buf[ptr], data_buf->addr, DATA_BUFFER_SIZE))
 			{
                 ret = -EFAULT;
@@ -753,17 +833,28 @@ static ssize_t rx666m_read(struct file *file, char __user *buf, size_t count, lo
 				ptr += DATA_BUFFER_SIZE;
                 ret = 0;
             }
-
+#else
+			ptr += DATA_BUFFER_SIZE;
+			ret = 0;
+#endif
 			spin_lock_irqsave(&dev->data_in_lock, flags);
 			list_add(&data_buf->list, &dev->data_in_bufs_avail);
 			spin_unlock_irqrestore(&dev->data_in_lock, flags);
 
+			//dev_info(&dev->interface->dev, "read some - done\n");
+	//dev_info(&dev->interface->dev, "data_in_ready=%d/%d\n", (int)atomic_read(&dev->data_in_ready), NUM_DATA_URB);
+	//dev_info(&dev->interface->dev, "data_in_used=%d/%d\n", (int)atomic_read(&dev->data_in_used), NUM_DATA_URB);
+	//dev_info(&dev->interface->dev, "data_in_progress=%d/%d\n", (int)atomic_read(&dev->data_in_progress), NUM_CONCURRENT_TRANSFERS);
 
+#if 0
+			//if(!atomic_read(&dev->data_in_progress))
+	        for(i=0;i<NUM_CONCURRENT_TRANSFERS && atomic_read(&dev->data_in_progress) < NUM_CONCURRENT_TRANSFERS ;++i)
             if (atomic_read(&dev->data_in_progress) < NUM_CONCURRENT_TRANSFERS)
 			{
-                rx666m_submit_urb(dev);
+                rx666m_submit_urb(dev, 3);
+			//	dev_err_ratelimited(&dev->interface->dev, "URB submit2\n");
 			}
-
+#endif
 			if(!ret && count-ptr < DATA_BUFFER_SIZE)
 			{
 				ret = ptr;
@@ -779,7 +870,7 @@ static ssize_t rx666m_read(struct file *file, char __user *buf, size_t count, lo
 		else
 		{
             spin_unlock_irqrestore(&dev->data_in_lock, flags);
-            ret = wait_event_interruptible_timeout(dev->data_in_wait, atomic_read(&dev->data_in_ready), 60 * HZ);
+            ret = wait_event_interruptible_timeout(dev->data_in_wait, atomic_read(&dev->data_in_ready), RX666_READ_TIMEOUT_S * HZ);
             if (ret < 0)
 			{
 				dev_info(&dev->interface->dev, "read error - wait_event_interruptible_timeout\n");
@@ -1147,7 +1238,7 @@ static int rx666m_probe(struct usb_interface *interface, const struct usb_device
     udev = interface_to_usbdev(interface);
 
 
-    dev = kzalloc(sizeof(rx666m_device_t), GFP_KERNEL);
+    dev = kzalloc(sizeof(rx666m_device_t), GFP_KERNEL_TRY);
     if (dev == NULL)
 	{
         dev_err(&interface->dev, "Out of memory\n");
@@ -1234,5 +1325,5 @@ module_usb_driver(rx666m_driver);
 
 MODULE_AUTHOR("Marcin Odrzywolski <emk6@wp.pl>");
 MODULE_DESCRIPTION("RX666m USB driver");
-MODULE_VERSION("v1.0");
+MODULE_VERSION("v1.1");
 MODULE_LICENSE("GPL");

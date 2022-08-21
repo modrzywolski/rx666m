@@ -96,6 +96,9 @@ public:
 				writeData(buf);
 				getRingBuffer().free(buf);
 			}
+
+			if(getRingBuffer().statsLastErr() < 0)
+				return -1;
 		}
 
 		return 0;

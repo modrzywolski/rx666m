@@ -126,6 +126,8 @@ int main(int ac, char *av[])
 		driver.WriteToFile( std::bind(&FileWriter::writeData, &fw, _1) );
 	}
 
+	std::cerr << "\nStopping\n";
+
 	driver.DumpReaderStats();
 	driver.DeactivateReader();
 

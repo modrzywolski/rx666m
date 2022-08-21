@@ -60,6 +60,7 @@ public:
 		count = 0;
 		total = 0;
 		lost = 0;
+		lastErr = 0;
 	}
 
 	~RingBuf()
@@ -134,6 +135,8 @@ public:
 	size_t statsTotal() { return total; }
 	size_t statsLost() { return lost; }
 	size_t statsCount() { return count; }
+	int statsLastErr() { return lastErr; }
+	void setLastErr(int _lastErr) { lastErr = _lastErr; }
 	size_t statsSize() { return ring.size(); }
 protected:
 
@@ -156,6 +159,7 @@ protected:
 	size_t						count;
 	size_t						total;
 	size_t						lost;
+	int							lastErr;
 	std::vector<RingBufEntry*>	ring;
 
 	std::mutex					data_guard;

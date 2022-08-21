@@ -709,7 +709,7 @@ int LowLevel::SendFW(unsigned char *firmware, uint32_t address, int32_t len)
 	cmd.address = address;
 	cmd.len = len;
 
-	fprintf(stderr,"sending ioctl RX666M_WRITE_RAM address=%x, len=%x\n", address, len);
+	//fprintf(stderr,"sending ioctl RX666M_WRITE_RAM address=%x, len=%x\n", address, len);
 	int r = ioctl(devHandle, RX666M_WRITE_RAM, &cmd);
 	if (r < 0)
 	{
@@ -808,7 +808,7 @@ int LowLevel::FX3Download(const char *imagefile)
                 data_p  = (unsigned int *)(fwBuf + index);
                 length  = data_p[0];
                 address = data_p[1];
-				fprintf(stderr,"Writting segment: %x of len %x\n", address, length);
+				//fprintf(stderr,"Writting segment: %x of len %x\n", address, length);
                 if (length != 0)
 				{
                         for (i = 0; i < length; i++)
@@ -936,6 +936,9 @@ void LowLevel::ReadThread(void)
 				buffer->bytesRead = 0;
 				getRingBuffer().commit(buffer);
 			}
+
+			if(res < 0)
+				getRingBuffer().setLastErr(res);
 		}
 		else
 		{

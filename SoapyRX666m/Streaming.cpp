@@ -30,6 +30,7 @@ std::vector<std::string> SoapyRX666m::getStreamFormats(const int direction, cons
     std::vector<std::string> formats;
 
     formats.push_back(SOAPY_SDR_CF32);
+    formats.push_back(SOAPY_SDR_CS16);
 
     return formats;
 }
@@ -82,6 +83,12 @@ SoapySDR::Stream *SoapyRX666m::setupStream(
     if (format == SOAPY_SDR_CF32)
     {
         SoapySDR_log(SOAPY_SDR_INFO, "Using format CF32.");
+		DataFormat = FM_FLOAT_32;
+    }
+    else if (format == SOAPY_SDR_CS16)
+    {
+        SoapySDR_log(SOAPY_SDR_INFO, "Using format CS16.");
+		DataFormat = FM_INT_16;
     }
     else
     {
@@ -132,6 +139,8 @@ int SoapyRX666m::deactivateStream(SoapySDR::Stream *stream, const int flags, con
 void SoapyRX666m::convertSamples( void *out_buff, void *in_buff, size_t st, size_t n)
 {
 	float *ftarget = reinterpret_cast<float*>(out_buff);
+	int16_t *itarget = reinterpret_cast<int16_t*>(out_buff);
+
 	uint16_t *ptr=reinterpret_cast<uint16_t*>(in_buff);
 
 	for (size_t i = 0; i < n; i++)
@@ -141,10 +150,15 @@ void SoapyRX666m::convertSamples( void *out_buff, void *in_buff, size_t st, size
 			ftarget[st + i * 2] = nco2()/2 + nco3()/2;
 			ftarget[(st + i) * 2 + 1] = 0.0;
 		}
-		else
+		else if (DataFormat == FM_FLOAT_32)
 		{
 			ftarget[(st + i) * 2] = float(ptr[i])/65536lu;
 			ftarget[(st + i) * 2 + 1] = 0.0;
+		}
+		else if (DataFormat == FM_INT_16)
+		{
+			itarget[(st + i) * 2] = ptr[i];
+			itarget[(st + i) * 2 + 1] = 0.0;
 		}
 	}
 }

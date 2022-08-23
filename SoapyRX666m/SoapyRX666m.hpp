@@ -37,6 +37,12 @@
 class SoapyRX666m: public SoapySDR::Device
 {
 public:
+	typedef enum 
+	{
+		FM_FLOAT_32,
+		FM_INT_16,
+	}DataFormat_t;
+
     SoapyRX666m(const SoapySDR::Kwargs &args);
 
     ~SoapyRX666m(void);
@@ -228,6 +234,7 @@ public:
 	double HFGain;
 	double UHFGain;
 	bool   AGCEnabled;
+	DataFormat_t	DataFormat = { FM_FLOAT_32 };
 
 	LowLevel	driver;
 	NCO		nco2;

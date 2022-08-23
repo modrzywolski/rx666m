@@ -435,6 +435,18 @@ static void rx666m_read_cb(struct urb *urb)
 
 	usb_unanchor_urb(urb);
 
+	switch (urb->status)
+	{
+	 	case -ENOENT:
+	 	case -ECONNRESET:
+	 	case -ENODEV:
+	 	case -ESHUTDOWN:
+			return;
+
+		default:
+			break;
+	}
+
     data_buf = (rx666m_data_buffer_t*)urb->context;
 	dev = data_buf->dev;
 	dev->read_cb_cnt++; //TODO: change to atomic
@@ -741,7 +753,6 @@ static ssize_t rx666m_read(struct file *file, char __user *buf, size_t count, lo
 
     if (dev->disconnecting)
 	{
-		dev_err_ratelimited(&dev->interface->dev, "read ENODEV\n");
         return -ENODEV;
 	}
 
@@ -749,7 +760,6 @@ static ssize_t rx666m_read(struct file *file, char __user *buf, size_t count, lo
 	{
         if (enable_rx(dev))
 		{
-			dev_err_ratelimited(&dev->interface->dev, "read EINVAL\n");
             return -ENODEV;
         }
     }
@@ -863,6 +873,11 @@ long rx666m_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 
     dev = file->private_data;
     data = (void __user *)arg;
+
+    if (dev->disconnecting)
+	{
+        return -ENODEV;
+	}
 
 	RX666_INFO(&dev->interface->dev, "ioctl: %d \n", cmd);
 
@@ -1231,6 +1246,9 @@ error_oom:
 static void rx666m_disconnect(struct usb_interface *interface)
 {
     rx666m_device_t *dev;
+
+	printk(KERN_INFO "rx666m disconnecting\n");
+
     if (interface->cur_altsetting->desc.bInterfaceNumber != 0)
         return;
 

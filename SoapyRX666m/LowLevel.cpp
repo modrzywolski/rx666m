@@ -363,7 +363,6 @@ void LowLevel::SetDCFreq(uint32_t freq)
 
 void LowLevel::SetAttn2(double gain)
 {
-
 	if(gain >= 0.0)
 		gain = 0.0;
 	else if (gain < ATTN2_Gain2)
@@ -392,7 +391,6 @@ void LowLevel::SetAttn2(double gain)
 
 void LowLevel::SetAttn1(double gain)
 {
-
 	if(gain >= 0.0)
 		gain = 0.0;
 	else if (gain < ATTN1_Gain)

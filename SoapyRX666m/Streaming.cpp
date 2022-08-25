@@ -147,7 +147,7 @@ void SoapyRX666m::convertSamples( void *out_buff, void *in_buff, size_t st, size
 	{
 		if(0)
 		{
-			ftarget[st + i * 2] = nco2()/2 + nco3()/2;
+			ftarget[(st + i) * 2] = nco2()/2 + nco3()/2;
 			ftarget[(st + i) * 2 + 1] = 0.0;
 		}
 		else if (DataFormat == FM_FLOAT_32)

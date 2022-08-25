@@ -960,7 +960,7 @@ void LowLevel::DumpReaderStats()
 
 	auto out = boost::format( "[Transferred: %s][Lost: %s][Duration: %s][Buffer Level: %.1f%%]") 
 				% human_readable_bytes(getRingBuffer().statsTotal())
-				% human_readable_bytes(getRingBuffer().statsLost())
+				% human_readable_bytes(getRingBuffer().statsOverflow())
 				% human_readable_duration(missionTime.total_seconds())
 				% (float(getRingBuffer().statsCount())/getRingBuffer().statsSize()*100.0)
 				;

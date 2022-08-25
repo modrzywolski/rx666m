@@ -28,7 +28,7 @@
 #include <boost/format.hpp>
 
 constexpr size_t	ring_chunk_size	= 4096*128;
-constexpr size_t	ring_total_entries = 64;
+constexpr size_t	ring_total_entries = 64*4;
 
 class RingBufEntry
 {
@@ -59,7 +59,8 @@ public:
 		rdPtr = 0;
 		count = 0;
 		total = 0;
-		lost = 0;
+		underflow = 0;
+		overflow = 0;
 		lastErr = 0;
 	}
 
@@ -79,6 +80,7 @@ public:
 
 		if(!count)
 		{
+			++underflow;
 			return NULL;
 		}
 
@@ -91,7 +93,7 @@ public:
 
 		if(count >= ring.size())
 		{
-			++lost;
+			++overflow;
 			return NULL;
 		}
 
@@ -133,7 +135,8 @@ public:
 	}
 
 	size_t statsTotal() { return total; }
-	size_t statsLost() { return lost; }
+	size_t statsUnderflow() { return underflow; }
+	size_t statsOverflow() { return overflow; }
 	size_t statsCount() { return count; }
 	int statsLastErr() { return lastErr; }
 	void setLastErr(int _lastErr) { lastErr = _lastErr; }
@@ -158,7 +161,8 @@ protected:
 	size_t						rdPtr;
 	size_t						count;
 	size_t						total;
-	size_t						lost;
+	size_t						overflow;
+	size_t						underflow;
 	int							lastErr;
 	std::vector<RingBufEntry*>	ring;
 
